@@ -230,7 +230,7 @@ class MainActivity : ComponentActivity() {
                         } else if (isDuressMode) {
                             Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("فارلو • Farlo", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                    Text(SadaStrings.tr("فارلو • Farlo", "Farlo"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                     Text(tr.noChats, color = MaterialTheme.colorScheme.outline)
                                 }
                             }
@@ -638,16 +638,16 @@ fun ChatApp(
                         blockedPeers.forEach { bId ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(nicknames[bId] ?: bId)
-                                TextButton(onClick = { ChatRepository.setBlocked(context, bId, false) }) { Text("فك الحظر") }
+                                TextButton(onClick = { ChatRepository.setBlocked(context, bId, false) }) { Text(SadaStrings.tr("فك الحظر", "Unblock")) }
                             }
                         }
                     }
                     if (wfdPeers.isNotEmpty()) {
                         HorizontalDivider()
-                        Text("أجهزة Wi-Fi Direct القريبة:", fontWeight = FontWeight.SemiBold)
+                        Text(SadaStrings.tr("أجهزة Wi-Fi Direct القريبة:", "Nearby Wi-Fi Direct devices:"), fontWeight = FontWeight.SemiBold)
                         wfdPeers.forEach { wp ->
                             TextButton(onClick = { WifiDirectManager.connect(wp); showSettingsDialog = false }) {
-                                Text("اتصال بـ ${wp.deviceName}")
+                                Text(SadaStrings.tr("اتصال بـ ${wp.deviceName}", "Connect to ${wp.deviceName}"))
                             }
                         }
                     }
@@ -660,12 +660,12 @@ fun ChatApp(
     if (showSetPinDialog) {
         AlertDialog(
             onDismissRequest = { showSetPinDialog = false },
-            title = { Text("تعيين رمز قفل التطبيق") },
+            title = { Text(SadaStrings.tr("تعيين رمز قفل التطبيق", "Set App Lock PIN")) },
             text = {
                 OutlinedTextField(
                     value = newPinInput,
                     onValueChange = { if (it.length <= 6 && it.all { ch -> ch.isDigit() }) newPinInput = it },
-                    label = { Text("أدخل 4 إلى 6 أرقام") },
+                    label = { Text(SadaStrings.tr("أدخل 4 إلى 6 أرقام", "Enter 4 to 6 digits")) },
                     singleLine = true
                 )
             },
@@ -677,9 +677,9 @@ fun ChatApp(
                         showSetPinDialog = false
                         BleManager.setStatus("تم تفعيل قفل التطبيق بنجاح")
                     }
-                }) { Text("حفظ") }
+                }) { Text(SadaStrings.tr("حفظ", "Save")) }
             },
-            dismissButton = { TextButton(onClick = { showSetPinDialog = false }) { Text("إلغاء") } }
+            dismissButton = { TextButton(onClick = { showSetPinDialog = false }) { Text(SadaStrings.current().cancel) } }
         )
     }
 
@@ -688,7 +688,7 @@ fun ChatApp(
         val qrBmp = remember(code) { QrHelper.generateQrBitmap(code, 600) }
         AlertDialog(
             onDismissRequest = { showMyQrDialog = false },
-            title = { Text("بطاقة QR الخاصة بك") },
+            title = { Text(SadaStrings.tr("بطاقة QR الخاصة بك", "Your QR Card")) },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Text(myId, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -699,7 +699,7 @@ fun ChatApp(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("امسح هذا الرمز لإضافة هاتفك بمفتاحه الفريد", style = MaterialTheme.typography.bodySmall)
+                    Text(SadaStrings.tr("امسح هذا الرمز لإضافة هاتفك بمفتاحه الفريد", "Scan this QR code to add your device and public key"), style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = {
@@ -708,7 +708,7 @@ fun ChatApp(
                     cm?.setPrimaryClip(ClipData.newPlainText("DesertCommID", code))
                     BleManager.setStatus("تم نسخ كودك الفريد")
                     showMyQrDialog = false
-                }) { Text("نسخ الكود") }
+                }) { Text(SadaStrings.tr("نسخ الكود", "Copy Code")) }
             },
             dismissButton = { TextButton(onClick = { showMyQrDialog = false }) { Text(SadaStrings.current().close) } }
         )
@@ -719,7 +719,7 @@ fun ChatApp(
         val qrBmp = remember(gCode) { gCode?.let { QrHelper.generateQrBitmap(it, 600) } }
         AlertDialog(
             onDismissRequest = { showGroupQrForId = null },
-            title = { Text("دعوة أعضاء لمجموعة ${groups[gid] ?: gid}") },
+            title = { Text(SadaStrings.tr("دعوة أعضاء لمجموعة ${groups[gid] ?: gid}", "Invite to ${groups[gid] ?: gid}")) },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     if (qrBmp != null) {
@@ -728,7 +728,7 @@ fun ChatApp(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("يمسح الأصدقاء هذا الرمز للانضمام للمجموعة المشفرة", style = MaterialTheme.typography.bodySmall)
+                    Text(SadaStrings.tr("يمسح الأصدقاء هذا الرمز للانضمام للمجموعة المشفرة", "Friends scan this code to join the encrypted group"), style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = {
@@ -738,7 +738,7 @@ fun ChatApp(
                         cm?.setPrimaryClip(ClipData.newPlainText("SadaGroup", gCode))
                         BleManager.setStatus("تم نسخ كود دعوة المجموعة")
                         showGroupQrForId = null
-                    }) { Text("نسخ الكود") }
+                    }) { Text(SadaStrings.tr("نسخ الكود", "Copy Code")) }
                 }
             },
             dismissButton = { TextButton(onClick = { showGroupQrForId = null }) { Text(SadaStrings.current().close) } }
@@ -752,27 +752,27 @@ fun ChatApp(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(selected = !createGroupMode, onClick = { createGroupMode = false }, label = { Text("شخص") }, modifier = Modifier.weight(1f))
-                        FilterChip(selected = createGroupMode, onClick = { createGroupMode = true }, label = { Text("مجموعة") }, modifier = Modifier.weight(1f))
+                        FilterChip(selected = !createGroupMode, onClick = { createGroupMode = false }, label = { Text(SadaStrings.tr("شخص", "Person")) }, modifier = Modifier.weight(1f))
+                        FilterChip(selected = createGroupMode, onClick = { createGroupMode = true }, label = { Text(SadaStrings.tr("مجموعة", "Group")) }, modifier = Modifier.weight(1f))
                     }
                     if (createGroupMode) {
                         OutlinedTextField(
                             value = newGroupNameInput,
                             onValueChange = { newGroupNameInput = it },
-                            label = { Text("اسم المجموعة (مثال: العائلة)") },
+                            label = { Text(SadaStrings.tr("اسم المجموعة (مثال: العائلة)", "Group name (e.g. Family)")) },
                             singleLine = true
                         )
                     } else {
                         OutlinedTextField(
                             value = newPeerIdInput,
                             onValueChange = { newPeerIdInput = it.trim() },
-                            label = { Text("الرقم أو الكود الكامل (DC-XXXX أو GRP|...)") },
+                            label = { Text(SadaStrings.tr("الرقم أو الكود الكامل (DC-XXXX أو GRP|...)", "ID or full invite code (DC-XXXX or GRP|...)")) },
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = newPeerNickInput,
                             onValueChange = { newPeerNickInput = it },
-                            label = { Text("الاسم المستعار (اختياري)") },
+                            label = { Text(SadaStrings.tr("الاسم المستعار (اختياري)", "Nickname (optional)")) },
                             singleLine = true
                         )
                     }
@@ -815,19 +815,19 @@ fun ChatApp(
                     }
                 }) { Text(if (createGroupMode) "إنشاء" else "بدء") }
             },
-            dismissButton = { TextButton(onClick = { showAddChatDialog = false }) { Text("إلغاء") } }
+            dismissButton = { TextButton(onClick = { showAddChatDialog = false }) { Text(SadaStrings.current().cancel) } }
         )
     }
 
     renameTargetId?.let { target ->
         AlertDialog(
             onDismissRequest = { renameTargetId = null },
-            title = { Text("تعديل الاسم المستعار") },
+            title = { Text(SadaStrings.tr("تعديل الاسم المستعار", "Edit Nickname")) },
             text = {
                 OutlinedTextField(
                     value = renameInput,
                     onValueChange = { renameInput = it },
-                    label = { Text("الاسم المستعار لـ $target") },
+                    label = { Text(SadaStrings.tr("الاسم المستعار لـ $target", "Nickname for $target")) },
                     singleLine = true
                 )
             },
@@ -835,9 +835,9 @@ fun ChatApp(
                 Button(onClick = {
                     ChatRepository.setNickname(context, target, renameInput)
                     renameTargetId = null
-                }) { Text("حفظ") }
+                }) { Text(SadaStrings.tr("حفظ", "Save")) }
             },
-            dismissButton = { TextButton(onClick = { renameTargetId = null }) { Text("إلغاء") } }
+            dismissButton = { TextButton(onClick = { renameTargetId = null }) { Text(SadaStrings.current().cancel) } }
         )
     }
 
@@ -847,7 +847,7 @@ fun ChatApp(
             val isTextMsg = !msg.text.startsWith("VOICE:") && !msg.text.startsWith("IMG:")
             AlertDialog(
                 onDismissRequest = { selectedMsg = null },
-                title = { Text("خيارات الرسالة") },
+                title = { Text(SadaStrings.tr("خيارات الرسالة", "Message Options")) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -865,12 +865,12 @@ fun ChatApp(
                         TextButton(
                             onClick = { replyingToMsg = msg; selectedMsg = null },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("↩ رد على هذه الرسالة") }
+                        ) { Text(SadaStrings.tr("↩ رد على هذه الرسالة", "↩ Reply to message")) }
                         if (msg.isMe && isTextMsg) {
                             OutlinedTextField(
                                 value = editMsgInput,
                                 onValueChange = { editMsgInput = it },
-                                label = { Text("تعديل النص") },
+                                label = { Text(SadaStrings.tr("تعديل النص", "Edit text")) },
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -883,7 +883,7 @@ fun ChatApp(
                                     selectedMsg = null
                                 }.padding(6.dp)) {
                                     Icon(Icons.Filled.ContentCopy, contentDescription = "نسخ")
-                                    Text("نسخ", style = MaterialTheme.typography.labelSmall)
+                                    Text(SadaStrings.current().copy, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
@@ -891,14 +891,14 @@ fun ChatApp(
                                 selectedMsg = null
                             }.padding(6.dp)) {
                                 Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = "إعادة توجيه")
-                                Text("توجيه", style = MaterialTheme.typography.labelSmall)
+                                Text(SadaStrings.tr("توجيه", "Forward"), style = MaterialTheme.typography.labelSmall)
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
                                 ChatRepository.deleteMessage(context, chatIdNow, msg.uid, sendMode, notifyPeer = msg.isMe)
                                 selectedMsg = null
                             }.padding(6.dp)) {
                                 Icon(Icons.Filled.Delete, contentDescription = "حذف", tint = MaterialTheme.colorScheme.error)
-                                Text("حذف", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                Text(SadaStrings.tr("حذف", "Delete"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -908,7 +908,7 @@ fun ChatApp(
                         Button(onClick = {
                             ChatRepository.editSentMessage(context, chatIdNow, msg.uid, editMsgInput, sendMode)
                             selectedMsg = null
-                        }) { Text("حفظ التعديل") }
+                        }) { Text(SadaStrings.tr("حفظ التعديل", "Save Edit")) }
                     }
                 },
                 dismissButton = { TextButton(onClick = { selectedMsg = null }) { Text(SadaStrings.current().close) } }
@@ -919,10 +919,10 @@ fun ChatApp(
     forwardMsgContent?.let { contentToForward ->
         AlertDialog(
             onDismissRequest = { forwardMsgContent = null },
-            title = { Text("إعادة توجيه إلى...") },
+            title = { Text(SadaStrings.tr("إعادة توجيه إلى...", "Forward to...")) },
             text = {
                 if (allChatIds.isEmpty()) {
-                    Text("لا توجد محادثات أخرى محفوظة.")
+                    Text(SadaStrings.tr("لا توجد محادثات أخرى محفوظة.", "No other saved chats."))
                 } else {
                     LazyColumn(modifier = Modifier.heightIn(max = 260.dp)) {
                         items(allChatIds) { destId ->
@@ -951,15 +951,15 @@ fun ChatApp(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { forwardMsgContent = null }) { Text("إلغاء") } }
+            dismissButton = { TextButton(onClick = { forwardMsgContent = null }) { Text(SadaStrings.current().cancel) } }
         )
     }
 
     if (showBatteryPrompt) {
         AlertDialog(
             onDismissRequest = { showBatteryPrompt = false },
-            title = { Text("تفعيل وصول الرسائل بالخلفية") },
-            text = { Text("لكي تصلك الرسائل والإشعارات فوراً حتى عند إغلاق الشاشة أو التطبيق، اسمح لتطبيق فارلو بالعمل بدون قيود البطارية.") },
+            title = { Text(SadaStrings.tr("تفعيل وصول الرسائل بالخلفية", "Enable Background Delivery")) },
+            text = { Text(SadaStrings.tr("لكي تصلك الرسائل والإشعارات فوراً حتى عند إغلاق الشاشة أو التطبيق، اسمح لتطبيق فارلو بالعمل بدون قيود البطارية.", "To receive messages reliably when the screen is off, allow Farlo to run without battery restrictions.")) },
             confirmButton = {
                 Button(onClick = {
                     showBatteryPrompt = false
@@ -969,10 +969,10 @@ fun ChatApp(
                         }
                         context.startActivity(intent)
                     }
-                }) { Text("تفعيل الآن") }
+                }) { Text(SadaStrings.tr("تفعيل الآن", "Enable Now")) }
             },
             dismissButton = {
-                TextButton(onClick = { showBatteryPrompt = false }) { Text("لاحقاً") }
+                TextButton(onClick = { showBatteryPrompt = false }) { Text(SadaStrings.tr("لاحقاً", "Later")) }
             }
         )
     }
@@ -1216,7 +1216,7 @@ fun ChatApp(
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("إرسال")
+                        Text(SadaStrings.current().send)
                     }
                 }
             }
@@ -1279,7 +1279,7 @@ fun ChatApp(
                                 IconButton(onClick = {
                                     val opts = ScanOptions().apply {
                                         setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                                        setPrompt("وجّه الكاميرا نحو رمز QR لصديقك")
+                                        setOrientationLocked(true); setPrompt(SadaStrings.tr("وجّه الكاميرا نحو رمز QR لصديقك", "Point camera at your friend's QR code"))
                                         setBeepEnabled(true)
                                         setOrientationLocked(false)
                                     }
@@ -1297,7 +1297,7 @@ fun ChatApp(
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                placeholder = { Text("ابحث بالاسم أو الرقم...") },
+                                placeholder = { Text(SadaStrings.tr("ابحث بالاسم أو الرقم...", "Search by name or ID...")) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(24.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -1320,9 +1320,9 @@ fun ChatApp(
             if (filteredChats.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("لا توجد محادثات بعد", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(SadaStrings.current().noChats, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
-                        Text("امسح رمز QR لصديقك أو اضغط + لبدء محادثة مشفرة", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                        Text(SadaStrings.tr("امسح رمز QR لصديقك أو اضغط + لبدء محادثة مشفرة", "Scan a friend's QR code or tap + to start an encrypted chat"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                     }
                 }
             } else {
@@ -1483,7 +1483,7 @@ fun ChatApp(
                             )
                         }
                         if (nearbyPeer != null && !isSecure) {
-                            TextButton(onClick = { BleManager.connectToDevice(context, nearbyPeer.device) }) { Text("اتصال") }
+                            TextButton(onClick = { BleManager.connectToDevice(context, nearbyPeer.device) }) { Text(SadaStrings.tr("اتصال", "Connect")) }
                         }
                         Box {
                             IconButton(onClick = { showChatMenu = true }) {
@@ -1492,7 +1492,7 @@ fun ChatApp(
                             DropdownMenu(expanded = showChatMenu, onDismissRequest = { showChatMenu = false }) {
                                 if (currentChat.startsWith("GRP-")) {
                                     DropdownMenuItem(
-                                        text = { Text("دعوة أعضاء عبر QR") },
+                                        text = { Text(SadaStrings.tr("دعوة أعضاء عبر QR", "Invite via QR")) },
                                         onClick = { showChatMenu = false; showGroupQrForId = currentChat }
                                     )
                                 }
@@ -1519,7 +1519,7 @@ fun ChatApp(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("تعديل الاسم المستعار") },
+                                    text = { Text(SadaStrings.tr("تعديل الاسم المستعار", "Edit Nickname")) },
                                     onClick = {
                                         showChatMenu = false
                                         renameTargetId = currentChat
@@ -1535,7 +1535,7 @@ fun ChatApp(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("حذف المحادثة تماماً", color = MaterialTheme.colorScheme.error) },
+                                    text = { Text(SadaStrings.tr("حذف المحادثة تماماً", "Delete Conversation"), color = MaterialTheme.colorScheme.error) },
                                     onClick = {
                                         showChatMenu = false
                                         ChatRepository.deleteConversation(context, currentChat)
@@ -1639,7 +1639,7 @@ fun ChatApp(
                                                 contentScale = ContentScale.Crop
                                             )
                                         } else {
-                                            Text("صورة مشفرة")
+                                            Text(SadaStrings.tr("صورة مشفرة", "Encrypted Photo"))
                                         }
                                         Spacer(Modifier.height(4.dp))
                                         Text(
@@ -1659,7 +1659,7 @@ fun ChatApp(
                                                 Icon(Icons.Filled.LocationOn, contentDescription = "موقع", tint = Color.White)
                                             }
                                             Column {
-                                                Text("موقع جغرافي مشفر", fontWeight = FontWeight.Bold)
+                                                Text(SadaStrings.tr("موقع جغرافي مشفر", "Encrypted Location"), fontWeight = FontWeight.Bold)
                                                 Text(coords, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                                             }
                                         }
@@ -1790,12 +1790,12 @@ fun ChatApp(
                                         } else {
                                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                                 Text("$iconLabel $fName", fontWeight = FontWeight.Bold)
-                                                Text("ملف مشفر • $sizeLabel", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                                                Text(SadaStrings.tr("ملف مشفر • $sizeLabel", "Encrypted File • $sizeLabel"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                                                 if (dlProg != null) {
                                                     Box(modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color.Gray.copy(alpha = 0.25f))) {
                                                         Box(modifier = Modifier.fillMaxWidth(dlProg.coerceIn(0.05f, 1f)).height(6.dp).background(MaterialTheme.colorScheme.primary))
                                                     }
-                                                    Text("جاري التنزيل وفك التشفير ${(dlProg * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                                                    Text(SadaStrings.tr("جاري التنزيل وفك التشفير ${(dlProg * 100).toInt()}%", "Decrypting ${(dlProg * 100).toInt()}%"), style = MaterialTheme.typography.labelSmall)
                                                 } else if (localFile == null) {
                                                     Button(
                                                         onClick = {
@@ -1806,7 +1806,7 @@ fun ChatApp(
                                                         },
                                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                                                     ) {
-                                                        Text("⬇ تنزيل وفك التشفير")
+                                                        Text(SadaStrings.tr("⬇ تنزيل وفك التشفير", "⬇ Download & Decrypt"))
                                                     }
                                                 } else {
                                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1816,7 +1816,7 @@ fun ChatApp(
                                                         ) {
                                                             Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                                                             Spacer(Modifier.width(4.dp))
-                                                            Text("فتح", style = MaterialTheme.typography.labelMedium)
+                                                            Text(SadaStrings.tr("فتح", "Open"), style = MaterialTheme.typography.labelMedium)
                                                         }
                                                         IconButton(
                                                             onClick = { localFile?.let { MediaActionsHelper.saveToDownloads(context, it, fName) } },
@@ -1846,7 +1846,7 @@ fun ChatApp(
                                         val expSec = if (isExp) msg.text.split("|", limit = 3).getOrNull(1) else null
                                         val cleanText = if (isExp) msg.text.split("|", limit = 3).getOrNull(2) ?: msg.text else msg.text
                                         if (isExp && expSec != null) {
-                                            Text("⏱ ذاتية الاختفاء (${expSec}ث)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            Text(SadaStrings.tr("⏱ ذاتية الاختفاء (${expSec}ث)", "⏱ Self-destruct (${expSec}s)"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                         }
                                         Text(cleanText)
                                         Row(
@@ -1875,7 +1875,7 @@ fun ChatApp(
             if (transferProgress.isNotEmpty()) {
                 val activeProg = transferProgress.values.firstOrNull() ?: 0f
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    Text("جاري تشفير ونقل الوسائط... ${(activeProg * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    Text(SadaStrings.tr("جاري تشفير ونقل الوسائط... ${(activeProg * 100).toInt()}%", "Encrypting & sending media... ${(activeProg * 100).toInt()}%"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                     Box(modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(Color.Gray.copy(alpha = 0.25f))) {
                         Box(modifier = Modifier.fillMaxWidth(activeProg.coerceIn(0.05f, 1f)).height(5.dp).background(MaterialTheme.colorScheme.primary))
                     }
@@ -2030,14 +2030,14 @@ fun ChatApp(
                         replyingToMsg?.let { rMsg ->
                             val preview = rMsg.text.removePrefix("EXP|30|").removePrefix("EXP|300|").take(45)
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("↩ الرد على: $preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                                Text("${SadaStrings.current().replyPrefix} $preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1)
                                 TextButton(onClick = { replyingToMsg = null }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(24.dp)) { Text("✕") }
                             }
                         }
                         if (disappearSeconds > 0) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("⏱ وضع الاختفاء الذاتي مفعّل (${if (disappearSeconds == 30) "30 ثانية" else "5 دقائق"})", style = MaterialTheme.typography.labelSmall, color = Color(0xFFF59E0B))
-                                TextButton(onClick = { disappearSeconds = 0 }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(24.dp)) { Text("إيقاف") }
+                                Text(SadaStrings.tr("⏱ وضع الاختفاء الذاتي مفعّل (${if (disappearSeconds == 30) "30 ثانية" else "5 دقائق"})", "⏱ Disappearing messages (${if (disappearSeconds == 30) "30s" else "5m"})"), style = MaterialTheme.typography.labelSmall, color = Color(0xFFF59E0B))
+                                TextButton(onClick = { disappearSeconds = 0 }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(24.dp)) { Text(SadaStrings.tr("إيقاف", "Off")) }
                             }
                         }
                     }

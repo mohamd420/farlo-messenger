@@ -91,7 +91,7 @@ fun AcousticWaveformPlayer(
         ) {
             Icon(
                 if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = if (isPlaying) "إيقاف" else "تشغيل",
+                contentDescription = if (isPlaying) SadaStrings.tr("إيقاف", "Pause") else SadaStrings.tr("تشغيل", "Play"),
                 tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(22.dp)
             )
@@ -211,7 +211,7 @@ fun RelayConstellationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "يتصل «فارلو» بعدة عقد مستقلة بالتوازي لضمان وصول رسائلك المشفرة بدون نقطة فشل واحدة.",
+                    SadaStrings.current().relaysDesc,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -235,7 +235,7 @@ fun RelayConstellationDialog(
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(if (up) Color(0xFF34D399) else Color(0xFFE57373)))
                                 Text(
-                                    if (up) "متصل" else "محاولة...",
+                                    if (up) SadaStrings.current().connected else SadaStrings.current().connecting,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = if (up) Color(0xFF34D399) else MaterialTheme.colorScheme.outline
                                 )
@@ -291,7 +291,7 @@ fun WalkieTalkieDialog(
     )
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("لاسلكي فارلو الحي • Live PTT", fontWeight = FontWeight.Bold) },
+        title = { Text(SadaStrings.current().pttTitle, fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -299,7 +299,7 @@ fun WalkieTalkieDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    "قناة لاسلكي مشفرة مفتوحة مع $peerName — اضغط مطوّلاً للتحدث الحي مباشرة (بدون حفظ تسجيلات)",
+                    SadaStrings.tr("قناة لاسلكي مشفرة مفتوحة مع $peerName — اضغط مطوّلاً للتحدث الحي مباشرة (بدون حفظ تسجيلات)", "Encrypted live radio channel with $peerName — hold to talk (no recordings saved)"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -336,9 +336,9 @@ fun WalkieTalkieDialog(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 when {
-                                    isTalking -> "يبث الآن"
-                                    isReceiving -> "يستقبل"
-                                    else -> "اضغط مطوّلاً"
+                                    isTalking -> SadaStrings.current().pttTalking
+                                    isReceiving -> SadaStrings.current().pttReceiving
+                                    else -> SadaStrings.current().pttHold
                                 },
                                 color = Color.White,
                                 fontWeight = FontWeight.ExtraBold,
@@ -350,16 +350,16 @@ fun WalkieTalkieDialog(
                 }
                 Text(
                     when {
-                        isTalking -> "🔴 جاري البث الحي... ارفع إصبعك للإيقاف"
-                        isReceiving -> "🟢 $peerName يتحدث الآن على القناة..."
-                        else -> "القناة جاهزة — افتح اللاسلكي على الجهازين وتحدث فوراً"
+                        isTalking -> SadaStrings.tr("🔴 جاري البث الحي... ارفع إصبعك للإيقاف", "🔴 Transmitting live... release to stop")
+                        isReceiving -> SadaStrings.tr("🟢 $peerName يتحدث الآن على القناة...", "🟢 $peerName is speaking on channel...")
+                        else -> SadaStrings.tr("القناة جاهزة — افتح اللاسلكي على الجهازين وتحدث فوراً", "Channel ready — open PTT on both devices and talk")
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = if (isTalking) Color(0xFFEF4444) else if (isReceiving) Color(0xFF10B981) else MaterialTheme.colorScheme.outline
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق القناة") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(SadaStrings.current().close) } }
     )
 }
 
@@ -376,14 +376,14 @@ fun EncryptedBackupDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "احفظ هويتك ومحادثاتك ومجموعاتك في ملف مشفّر (Downloads/Farlo/*.sadaenc) بكلمة مرور لاستعادتها على أي هاتف.",
+                    SadaStrings.current().backupDesc,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("كلمة مرور التشفير (4 أحرف+)") },
+                    label = { Text(SadaStrings.current().backupPwdLabel) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -439,9 +439,9 @@ fun SadaCallOverlay(
             ) {
                 Text(
                     when (callState.phase) {
-                        com.desertcomm.p2p.CallPhase.INCOMING -> "مكالمة صوتية مشفّرة واردة..."
-                        com.desertcomm.p2p.CallPhase.OUTGOING -> "جاري الاتصال المشفّر..."
-                        com.desertcomm.p2p.CallPhase.ACTIVE -> String.format(Locale.US, "مكالمة مشفّرة E2EE • %02d:%02d", mm, ss)
+                        com.desertcomm.p2p.CallPhase.INCOMING -> SadaStrings.current().callIncoming
+                        com.desertcomm.p2p.CallPhase.OUTGOING -> SadaStrings.current().callOutgoing
+                        com.desertcomm.p2p.CallPhase.ACTIVE -> String.format(Locale.US, SadaStrings.tr("مكالمة مشفّرة E2EE • %02d:%02d", "E2EE Voice Call • %02d:%02d"), mm, ss)
                         else -> ""
                     },
                     color = Color(0xFF34D399),
@@ -452,7 +452,7 @@ fun SadaCallOverlay(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        callState.peerName.take(2).ifEmpty { "فارلو" },
+                        callState.peerName.take(2).ifEmpty { "FL" },
                         color = Color.White,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
@@ -516,7 +516,7 @@ fun MeshDiagnosticsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("تشخيص الشبكة الميداني • Mesh", fontWeight = FontWeight.Bold) },
+        title = { Text(SadaStrings.tr("تشخيص الشبكة الميداني • Mesh", "Field Mesh Diagnostics"), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 @Composable
@@ -535,12 +535,12 @@ fun MeshDiagnosticsDialog(
                         }
                     }
                 }
-                DiagRow("معرّف العقدة", myId, true)
-                DiagRow("حالة البلوتوث (BLE)", bleStateLabel, nearbyPeersCount > 0)
-                DiagRow("الأجهزة القريبة المكتشفة", "$nearbyPeersCount جهاز", nearbyPeersCount > 0)
-                DiagRow("Wi-Fi Direct", if (wifiDirectConnected) "متصل" else "جاهز / غير متصل", wifiDirectConnected)
-                DiagRow("حزم DTN بانتظار القفز", "$dtnQueuedCount حزمة", dtnQueuedCount == 0)
-                DiagRow("مرحّلات Nostr النشطة", "$connectedRelays عقدة", connectedRelays > 0)
+                DiagRow(SadaStrings.tr("معرّف العقدة", "Node ID"), myId, true)
+                DiagRow(SadaStrings.tr("حالة البلوتوث (BLE)", "Bluetooth (BLE)"), bleStateLabel, nearbyPeersCount > 0)
+                DiagRow(SadaStrings.tr("الأجهزة القريبة المكتشفة", "Nearby Peers"), SadaStrings.tr("$nearbyPeersCount جهاز", "$nearbyPeersCount device(s)"), nearbyPeersCount > 0)
+                DiagRow("Wi-Fi Direct", if (wifiDirectConnected) SadaStrings.current().connected else SadaStrings.tr("جاهز / غير متصل", "Ready / Idle"), wifiDirectConnected)
+                DiagRow(SadaStrings.tr("حزم DTN بانتظار القفز", "Queued DTN Bundles"), SadaStrings.tr("$dtnQueuedCount حزمة", "$dtnQueuedCount bundle(s)"), dtnQueuedCount == 0)
+                DiagRow(SadaStrings.tr("مرحّلات Nostr النشطة", "Active Nostr Relays"), SadaStrings.tr("$connectedRelays عقدة", "$connectedRelays relay(s)"), connectedRelays > 0)
             }
         },
         confirmButton = { Button(onClick = onDismiss) { Text(SadaStrings.current().close) } }
@@ -557,11 +557,11 @@ fun SafetyNumberDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("رقم الأمان • Safety Number", fontWeight = FontWeight.Bold) },
+        title = { Text(SadaStrings.tr("رقم الأمان • Safety Number", "Safety Number"), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "قارن هذه الأرقام مع $peerName (صوتياً أو عن قرب). تطابقها يؤكد عدم وجود أي تنصّت أو انتحال للمفاتيح.",
+                    SadaStrings.tr("قارن هذه الأرقام مع $peerName (صوتياً أو عن قرب). تطابقها يؤكد عدم وجود أي تنصّت أو انتحال للمفاتيح.", "Compare these numbers with $peerName in person or over a call. A match confirms end-to-end encryption with no MITM."),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -579,7 +579,7 @@ fun SafetyNumberDialog(
                     }
                 }
                 Text(
-                    if (info.hasPeerPublicKey) "🔒 تشفير مفتاح عام كامل (E2EE)" else "⏳ مبدئي — أرسل رسالة واحدة لإتمام تبادل المفتاح العام",
+                    if (info.hasPeerPublicKey) SadaStrings.tr("🔒 تشفير مفتاح عام كامل (E2EE)", "🔒 Full Public-Key E2EE Active") else SadaStrings.tr("⏳ مبدئي — أرسل رسالة واحدة لإتمام تبادل المفتاح العام", "⏳ Pending — send one message to complete key exchange"),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (info.hasPeerPublicKey) Color(0xFF34D399) else Color(0xFFF59E0B)
                 )
@@ -588,9 +588,9 @@ fun SafetyNumberDialog(
                         onClick = onToggleVerify,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(if (info.isVerified) "إلغاء التوثيق" else "توثيق جهة الاتصال ✓")
+                        Text(if (info.isVerified) SadaStrings.current().unverifyBtn else SadaStrings.current().verifyBtn)
                     }
-                    TextButton(onClick = onCopy) { Text("نسخ") }
+                    TextButton(onClick = onCopy) { Text(SadaStrings.current().copy) }
                 }
             }
         },
