@@ -22,3 +22,15 @@
 ## Build Instructions
 1. Build Rust core (`arm64-v8a`) with `cargo-ndk` into `app-android/app/src/main/jniLibs/arm64-v8a/libdesertcomm_v3.so`.
 2. Run `./gradlew assembleDebug` (or configure `local.properties` for signed `assembleRelease`).
+
+## Security Status (Public Beta)
+
+Farlo v4.7 is an open-source **Public Beta** released for community testing and security review. It has **not yet undergone an independent third-party cryptographic audit**. For responsible disclosure and threat-model details, see `SECURITY.md`.
+
+## Roadmap (v5.0 & Beyond)
+
+- **Cryptographic Upgrades**: Double Ratchet (Forward Secrecy & Post-Compromise Security) + ML-KEM (Kyber) post-quantum key exchange inside the Rust core, and strict key-exchange enforcement prior to first message.
+- **Decentralized Media**: Migration to Nostr **Blossom** servers for censorship-resistant encrypted media hosting.
+- **Cross-Platform**: iOS client sharing the same Rust cryptographic core via `UniFFI`.
+- **Off-Grid Expansion**: BLE-to-Internet blind gateway relays and optional **LoRa / Codec2** ultra-low-bitrate radio transport.
+- **Optional Privacy Ecosystem Integrations**: Exploring optional private peer-to-peer payments (e.g., Firo Lelantus Spark / Spark Names) while keeping Farlo 100% self-contained with zero external helper apps.
