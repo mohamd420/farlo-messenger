@@ -56,9 +56,11 @@ object HardwareKeystore {
         val hwKey = getOrCreateHardwareKey()
 
         if (encB64 != null && ivB64 != null) {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, hwKey, GCMParameterSpec(128, Base64.decode(ivB64, Base64.NO_WRAP)))
-            return cipher.doFinal(Base64.decode(encB64, Base64.NO_WRAP))
+            runCatching {
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, hwKey, GCMParameterSpec(128, Base64.decode(ivB64, Base64.NO_WRAP)))
+                cipher.doFinal(Base64.decode(encB64, Base64.NO_WRAP))
+            }.getOrNull()?.let { return it }
         }
 
         val rawKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
@@ -174,11 +176,13 @@ object HardwareKeystore {
         val hwKey = getOrCreateHardwareKey()
 
         if (encPrivB64 != null && ivB64 != null && pubB64 != null) {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, hwKey, GCMParameterSpec(128, Base64.decode(ivB64, Base64.NO_WRAP)))
-            val priv = cipher.doFinal(Base64.decode(encPrivB64, Base64.NO_WRAP))
-            val pub = Base64.decode(pubB64, Base64.NO_WRAP)
-            return priv to pub
+            runCatching {
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, hwKey, GCMParameterSpec(128, Base64.decode(ivB64, Base64.NO_WRAP)))
+                val priv = cipher.doFinal(Base64.decode(encPrivB64, Base64.NO_WRAP))
+                val pub = Base64.decode(pubB64, Base64.NO_WRAP)
+                priv to pub
+            }.getOrNull()?.let { return it }
         }
 
         val (priv, pub) = keygen()

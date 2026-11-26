@@ -5,6 +5,7 @@ plugins {
 }
 
 android {
+    packaging { jniLibs { useLegacyPackaging = true } }
     namespace = "com.desertcomm"
     compileSdk {
         version = release(37)
@@ -14,7 +15,7 @@ android {
         applicationId = "com.desertcomm"
         minSdk = 26
         targetSdk = 37
-        versionCode = 54
+        versionCode = 56
         versionName = "4.7.1"
         ndk { abiFilters += listOf("arm64-v8a") }
 

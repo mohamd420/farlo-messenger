@@ -438,7 +438,7 @@ fun ChatApp(
         val intent = Intent(context, DesertCommFgService::class.java).apply {
             putExtra(DesertCommFgService.EXTRA_TACTICAL_MODE, tactical)
         }
-        ContextCompat.startForegroundService(context, intent)
+        runCatching { ContextCompat.startForegroundService(context, intent) }
     }
 
     val qrScanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->

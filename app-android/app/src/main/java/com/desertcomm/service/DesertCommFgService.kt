@@ -73,7 +73,7 @@ class DesertCommFgService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val fgType = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
             runCatching { startForeground(NOTIF_ID, notif, fgType) }
-                .onFailure { startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE) }
+                .onFailure { runCatching { startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) }.onFailure { runCatching { startForeground(NOTIF_ID, notif) } } }
         } else {
             startForeground(NOTIF_ID, notif)
         }
