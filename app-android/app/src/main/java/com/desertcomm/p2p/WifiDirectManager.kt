@@ -44,7 +44,7 @@ object WifiDirectManager {
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
-    private val _status = MutableStateFlow("Wi-Fi Direct متوقف")
+    private val _status = MutableStateFlow(com.desertcomm.ui.SadaStrings.tr("Wi-Fi Direct متوقف", "Wi-Fi Direct: Idle"))
     val status: StateFlow<String> = _status.asStateFlow()
 
     var onConnectedReady: (() -> Unit)? = null
@@ -99,8 +99,8 @@ object WifiDirectManager {
         val mgr = manager ?: return
         val ch = channel ?: return
         mgr.discoverPeers(ch, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() { _status.value = "Wi-Fi Direct: جاري البحث..." }
-            override fun onFailure(reason: Int) { _status.value = "Wi-Fi Direct: فشل البحث ($reason)" }
+            override fun onSuccess() { _status.value = com.desertcomm.ui.SadaStrings.tr("Wi-Fi Direct: جاري البحث...", "Wi-Fi Direct: Scanning...") }
+            override fun onFailure(reason: Int) { _status.value = com.desertcomm.ui.SadaStrings.tr("Wi-Fi Direct: فشل البحث ($reason)", "Wi-Fi Direct: Scan failed ($reason)") }
         })
     }
 
@@ -108,17 +108,17 @@ object WifiDirectManager {
         val mgr = manager ?: return
         val ch = channel ?: return
         val config = WifiP2pConfig().apply { deviceAddress = device.deviceAddress }
-        _status.value = "Wi-Fi Direct: جاري الربط مع ${device.deviceName}..."
+        _status.value = com.desertcomm.ui.SadaStrings.tr("Wi-Fi Direct: جاري الربط مع ${device.deviceName}...", "Wi-Fi Direct: Connecting to ${device.deviceName}...")
         mgr.connect(ch, config, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() { _status.value = "Wi-Fi Direct: تم طلب الاتصال..." }
-            override fun onFailure(reason: Int) { _status.value = "Wi-Fi Direct: فشل الربط ($reason)" }
+            override fun onSuccess() { _status.value = com.desertcomm.ui.SadaStrings.tr("Wi-Fi Direct: تم طلب الاتصال...", "Wi-Fi Direct: Connection requested...") }
+            override fun onFailure(reason: Int) { _status.value = com.desertcomm.ui.SadaStrings.tr("Wi-Fi Direct: فشل الربط ($reason)", "Wi-Fi Direct: Connect failed ($reason)") }
         })
     }
 
     private fun handleConnectionInfo(info: WifiP2pInfo) {
         if (!info.groupFormed) return
         if (info.isGroupOwner) {
-            _status.value = "Wi-Fi Direct: مضيف (Group Owner)"
+            _status.value = com.desertcomm.ui.SadaStrings.tr("Wi-Fi Direct: مضيف (Group Owner)", "Wi-Fi Direct: Host (Group Owner)")
             ioExecutor.execute {
                 try {
                     serverSocket?.close()
@@ -132,7 +132,7 @@ object WifiDirectManager {
             }
         } else {
             val host: InetAddress = info.groupOwnerAddress ?: return
-            _status.value = "Wi-Fi Direct: عميل متصل بـ ${host.hostAddress}"
+            _status.value = com.desertcomm.ui.SadaStrings.tr("Wi-Fi Direct: عميل متصل بـ ${host.hostAddress}", "Wi-Fi Direct: Connected to ${host.hostAddress}")
             ioExecutor.execute {
                 try {
                     Thread.sleep(400)
@@ -149,7 +149,7 @@ object WifiDirectManager {
         activeSocket = sock
         dataOut = DataOutputStream(sock.getOutputStream())
         _isConnected.value = true
-        _status.value = "Wi-Fi Direct: قناة سريعة جاهزة"
+        _status.value = com.desertcomm.ui.SadaStrings.tr("Wi-Fi Direct: قناة سريعة جاهزة", "Wi-Fi Direct: Fast channel ready")
         onConnectedReady?.invoke()
 
         ioExecutor.execute {

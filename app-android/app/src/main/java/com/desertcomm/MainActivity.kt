@@ -540,9 +540,9 @@ fun ChatApp(
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val curLang by SadaStrings.langOverride.collectAsState()
-                    Text("🌐 اللغة / Language", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Text(SadaStrings.tr("🌐 اللغة", "🌐 Language"), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf("auto" to "Auto", "ar" to "عربي", "en" to "EN", "fr" to "FR", "es" to "ES", "de" to "DE").forEach { (code, lbl) ->
+                        listOf("auto" to "Auto", "ar" to "العربية", "en" to "English").forEach { (code, lbl) ->
                             val sel = curLang == code
                             Surface(
                                 onClick = { SadaStrings.setLanguage(context, code) },
@@ -563,7 +563,7 @@ fun ChatApp(
                     ) {
                         Column(Modifier.padding(10.dp)) {
                             Text("${SadaStrings.current().yourId} $myId", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            Text("الساعة: Stratum $stratum  •  DTN: $dtnQueuedCount", style = MaterialTheme.typography.labelSmall)
+                            Text(SadaStrings.tr("الساعة: Stratum $stratum  •  DTN: $dtnQueuedCount", "Clock: Stratum $stratum  •  DTN: $dtnQueuedCount"), style = MaterialTheme.typography.labelSmall)
                             Text(wfdStatus, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                         }
                     }
@@ -584,14 +584,14 @@ fun ChatApp(
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("🧅 Tor المدمج (بدون Orbot)", fontWeight = FontWeight.Medium)
-                            Text(if (torProxyEnabled) "حالة Tor: $torStatus" else "إخفاء الـ IP وتجاوز الحجب", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                            Text(SadaStrings.tr("🧅 Tor المدمج (بدون Orbot)", "🧅 Built-in Tor (No Orbot)"), fontWeight = FontWeight.Medium)
+                            Text(if (torProxyEnabled) SadaStrings.tr("حالة Tor: $torStatus", "Tor: $torStatus") else SadaStrings.tr("إخفاء الـ IP وتجاوز الحجب", "Hide IP & bypass censorship"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                         }
                         Switch(checked = torProxyEnabled, onCheckedChange = { on ->
                             torProxyEnabled = on
                             HardwareKeystore.setTorProxyEnabled(context, on)
                             if (on) {
-                                android.widget.Toast.makeText(context, "جاري تشغيل نواة Tor المدمجة (10-20 ثانية)...", android.widget.Toast.LENGTH_LONG).show()
+                                android.widget.Toast.makeText(context, SadaStrings.tr("جاري تشغيل نواة Tor المدمجة (10-20 ثانية)...", "Starting built-in Tor (10-20s)..."), android.widget.Toast.LENGTH_LONG).show()
                                 com.desertcomm.p2p.EmbeddedTorManager.start(context) { p -> OnlineBlindRelay.setTorEnabled(true, p) }
                             } else {
                                 com.desertcomm.p2p.EmbeddedTorManager.stop(context)
@@ -1471,9 +1471,9 @@ fun ChatApp(
                             Text(displayName, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 when {
-                                    isSecure -> "متصل مشفر (E2EE)"
-                                    nearbyPeer != null -> "قريب عبر البلوتوث"
-                onlineConnected -> "متصل مشفّر عالمياً 🌐 ($connectedRelays)"
+                                    isSecure -> SadaStrings.tr("متصل مشفر (E2EE)", "Connected Encrypted (E2EE)")
+                                    nearbyPeer != null -> SadaStrings.tr("قريب عبر البلوتوث", "Nearby via Bluetooth")
+                onlineConnected -> SadaStrings.tr("متصل مشفّر عالمياً 🌐 ($connectedRelays)", "Global E2EE Online 🌐 ($connectedRelays)")
                                     else -> displayStatus
                                 },
                                 style = MaterialTheme.typography.labelSmall,

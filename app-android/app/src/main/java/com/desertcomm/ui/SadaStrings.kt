@@ -189,13 +189,12 @@ object SadaStrings {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_LANG, code).apply()
     }
 
+    fun tr(arText: String, enText: String): String = if (current().isRtl) arText else enText
+
     fun current(overrideCode: String = composeLang.value): SadaLang {
         val code = if (overrideCode == "auto") Locale.getDefault().language.lowercase(Locale.US) else overrideCode
         return when (code) {
         "ar" -> ar
-        "fr" -> fr
-        "es" -> es
-        "de" -> de
         else -> en
         }
     }
