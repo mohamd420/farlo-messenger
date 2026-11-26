@@ -39,7 +39,7 @@ object OnlineBlindRelay {
 
     private fun buildClient(useTor: Boolean, port: Int = 9050): OkHttpClient = OkHttpClient.Builder()
         .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
-        .pingInterval(55, TimeUnit.SECONDS)
+        .pingInterval(25, TimeUnit.SECONDS)
         .connectTimeout(if (useTor) 20 else 10, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
         .apply { if (useTor) proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", port))) }
