@@ -1,0 +1,10 @@
+[package]
+name = "framing-clock-core"
+version = "3.1.0"
+edition = "2021"
+
+[dependencies]
+blake3.workspace = true
+siphasher.workspace = true
+zeroize.workspace = true
+thiserror.workspace = true

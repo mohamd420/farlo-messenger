@@ -1,0 +1,8 @@
+[package]
+name = "rf-channel-sim"
+version = "3.1.0"
+edition = "2021"
+
+[dependencies]
+rand = "0.8"
+fec-interleaver = { path = "../fec-interleaver" }

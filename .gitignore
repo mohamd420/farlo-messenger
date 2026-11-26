@@ -1,0 +1,23 @@
+# Secrets & Keys (NEVER COMMIT)
+*.jks
+*.keystore
+local.properties
+google-services.json
+*firebase*.json
+*.sadaenc
+
+# Build outputs
+*.apk
+*.aab
+app-android/build/
+app-android/app/build/
+app-android/.gradle/
+app-android/.idea/
+desertcomm-v3/target/
+*.bak*
+
+# Server runtime data
+sada-server/ntfy-cache/
+sada-server/nostr-data/
+app-android/.kotlin/
+core-crypto/

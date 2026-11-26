@@ -1,0 +1,23 @@
+[package]
+name = "desertcomm-ffi"
+version = "3.1.0"
+edition = "2021"
+
+[lib]
+name = "desertcomm_v3"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+jni = "0.21"
+once_cell = "1.19"
+rand = "0.8"
+chacha20poly1305 = "0.10"
+zeroize.workspace = true
+framing-clock-core = { path = "../framing-clock-core" }
+blind-crypto = { path = "../blind-crypto" }
+fec-interleaver = { path = "../fec-interleaver" }
+dsp-modem = { path = "../dsp-modem" }
+dtn-router = { path = "../dtn-router" }
+raptorq = "2.0"
+blake3.workspace = true
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }

@@ -1,0 +1,23 @@
+﻿services:
+  sada-ntfy:
+    image: binwiederhier/ntfy:latest
+    restart: unless-stopped
+    command: serve
+    environment:
+      - NTFY_BASE_URL=https://relay.YOUR-DOMAIN.com
+      - NTFY_CACHE_DURATION=168h
+      - NTFY_ATTACHMENT_FILE_SIZE_LIMIT=100M
+      - NTFY_ATTACHMENT_EXPIRY_DURATION=168h
+      - NTFY_VISITOR_REQUEST_LIMIT_BURST=500
+    ports: ["8080:80"]
+    volumes: ["./ntfy-cache:/var/cache/ntfy"]
+  sada-nostr:
+    image: scsibug/nostr-rs-relay:latest
+    restart: unless-stopped
+    ports: ["7777:8080"]
+    volumes: ["./nostr-data:/usr/src/app/db"]
+  sada-turn:
+    image: coturn/coturn:latest
+    restart: unless-stopped
+    network_mode: host
+    command: ["-n", "--realm=turn.YOUR-DOMAIN.com", "--lt-cred-mech", "--user=sada:CHANGE_PASSWORD"]
