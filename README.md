@@ -1,3 +1,13 @@
+<p align="center">
+  <img src="docs/icon.png" width="110" alt="Farlo Logo" />
+</p>
+
+<p align="center">
+  <img src="docs/photo_2026-11-26_21-53-48.jpg" width="190" />
+  <img src="docs/photo_2026-11-26_21-54-25.jpg" width="190" />
+  <img src="docs/photo_2026-11-26_21-54-41.jpg" width="190" />
+  <img src="docs/photo_2026-11-26_21-54-46.jpg" width="190" />
+</p>
 # Farlo — Hybrid Off-Grid & Decentralized E2EE Messenger
 
 **Farlo** is an open-source, resilient Android + Rust messaging platform engineered to work seamlessly **with or without internet**. It combines a **Rust cryptographic & DTN core (`desertcomm-v3`)** with **BLE/Wi-Fi Direct multi-hop blind relaying** for off-grid environments and **NIP-59 Nostr Multi-Relay** + **WebRTC Opus** for global online communication.
