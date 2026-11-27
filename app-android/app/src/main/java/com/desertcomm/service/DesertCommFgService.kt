@@ -87,7 +87,7 @@ class DesertCommFgService : Service() {
         if (intent?.action == "com.desertcomm.DOZE_WAKE") {
             runCatching {
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-                pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "DesertComm::DozePulse").acquire(4_000L)
+                // Doze-friendly wake without holding WakeLock
             }
         }
         registerNetworkWatcher()
@@ -104,7 +104,7 @@ class DesertCommFgService : Service() {
             val am = getSystemService(Context.ALARM_SERVICE) as? android.app.AlarmManager ?: return
             val i = Intent(this, DesertCommFgService::class.java).apply { action = "com.desertcomm.DOZE_WAKE" }
             val pi = PendingIntent.getService(this, 3109, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            am.setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 180_000L, pi)
+            am.setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 900_000L, pi)
         }
     }
 

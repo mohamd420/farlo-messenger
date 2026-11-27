@@ -748,7 +748,7 @@ fun ChatApp(
     if (showAddChatDialog) {
         AlertDialog(
             onDismissRequest = { showAddChatDialog = false },
-            title = { Text(if (createGroupMode) "إنشاء مجموعة مشفرة" else "محادثة جديدة") },
+            title = { Text(if (createGroupMode) SadaStrings.tr("إنشاء مجموعة مشفرة", "New Encrypted Group") else SadaStrings.tr("محادثة جديدة", "New Chat")) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -813,7 +813,7 @@ fun ChatApp(
                             newPeerNickInput = ""
                         }
                     }
-                }) { Text(if (createGroupMode) "إنشاء" else "بدء") }
+                }) { Text(if (createGroupMode) SadaStrings.tr("إنشاء", "Create") else SadaStrings.tr("بدء", "Start")) }
             },
             dismissButton = { TextButton(onClick = { showAddChatDialog = false }) { Text(SadaStrings.current().cancel) } }
         )
@@ -1313,7 +1313,7 @@ fun ChatApp(
                     contentColor = Color.White,
                     shape = CircleShape
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = "محادثة جديدة")
+                    Icon(Icons.Filled.Add, contentDescription = SadaStrings.tr("محادثة جديدة", "New Chat"))
                 }
             }
         ) { padding ->
