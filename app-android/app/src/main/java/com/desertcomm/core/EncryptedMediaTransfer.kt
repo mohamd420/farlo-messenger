@@ -72,7 +72,7 @@ object EncryptedMediaTransfer {
             .addFormDataPart("reqtype", "fileupload")
             .addFormDataPart("fileToUpload", "enc_${UUID.randomUUID().toString().take(8)}.bin", progressBody(enc, onP))
             .build()
-        val req = Request.Builder().url("https://catbox.moe/user/api.php").post(body).build()
+        val req = Request.Builder().url("https://catbox.moe/user/api.php").header("User-Agent", "Mozilla/5.0").post(body).build()
         return client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) error("catbox HTTP ${resp.code}")
             val url = resp.body?.string()?.trim().orEmpty()
@@ -152,7 +152,7 @@ object EncryptedMediaTransfer {
         val client = clientFor(context)
 
         fun fetchBytes(targetUrl: String): Pair<String, ByteArray> {
-            val rb = Request.Builder().url(targetUrl).get()
+            val rb = Request.Builder().url(targetUrl).header("User-Agent", "Mozilla/5.0").get()
             if (targetUrl.contains("filebin.net")) rb.header("Cookie", "verified=2024-05-24")
             return client.newCall(rb.build()).execute().use { resp ->
                 if (!resp.isSuccessful) error("فشل تنزيل الملف (HTTP ${resp.code})")
@@ -178,7 +178,7 @@ object EncryptedMediaTransfer {
         val fixedUrl = downloadUrl.replace("/dl/dl/", "/dl/")
         val (ct1, bytes1) = fetchBytes(fixedUrl)
         val encryptedBytes = if (ct1.contains("text/html", ignoreCase = true) ||
-            (bytes1.size > 10 && String(bytes1, 0, 15, Charsets.UTF_8).contains("<"))
+            (bytes1.size > 15 && String(bytes1, 0, 15, Charsets.UTF_8).trimStart().let { it.startsWith("<!DOCTYPE", true) || it.startsWith("<html", true) })
         ) {
             val html = String(bytes1, Charsets.UTF_8)
             val realUrl = Regex("""href="(https?://tmpfiles\.org/dl/[^"]+)"""").find(html)?.groupValues?.get(1)
