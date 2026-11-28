@@ -21,3 +21,5 @@ dtn-router = { path = "../dtn-router" }
 raptorq = "2.0"
 blake3.workspace = true
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+k256 = { version = "0.13", features = ["schnorr"] }

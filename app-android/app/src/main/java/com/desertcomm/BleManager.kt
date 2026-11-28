@@ -111,6 +111,8 @@ object BleManager {
             updateStatus(BleState.ERROR, "البلوتوث غير مفعّل على الجهاز")
             return
         }
+        bleAdvertiser = adapter.bluetoothLeAdvertiser
+        bleScanner = adapter.bluetoothLeScanner
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             updateStatus(BleState.ERROR, "يتطلب أندرويد 10 أو أحدث لقناة BLE L2CAP")
             return
@@ -158,8 +160,7 @@ object BleManager {
                 .addServiceUuid(ParcelUuid(SERVICE_UUID))
                 .addServiceData(ParcelUuid(SERVICE_UUID), payload)
                 .build()
-            bleAdvertiser?.startAdvertising(settings, data, advertiseCallback)
-            isAdvertising = true
+            bleAdvertiser?.let { it.startAdvertising(settings, data, advertiseCallback); isAdvertising = true }
         }
 
         if (!isScanning) {
@@ -169,8 +170,7 @@ object BleManager {
             val scanSettings = ScanSettings.Builder()
                 .setScanMode(if (highPowerMode) ScanSettings.SCAN_MODE_BALANCED else ScanSettings.SCAN_MODE_LOW_POWER)
                 .build()
-            bleScanner?.startScan(listOf(filter), scanSettings, scanCallback)
-            isScanning = true; if (activeSocket == null) _bleState.value = BleState.ADVERTISING_AND_SCANNING
+            bleScanner?.let { it.startScan(listOf(filter), scanSettings, scanCallback); isScanning = true }; if (activeSocket == null) _bleState.value = BleState.ADVERTISING_AND_SCANNING
         }
 
         updateStatus(BleState.ADVERTISING_AND_SCANNING, "بحث (طاقة قصوى | PSM $localPsm)...")

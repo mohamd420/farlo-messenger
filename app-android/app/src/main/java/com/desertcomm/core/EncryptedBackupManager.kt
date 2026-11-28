@@ -19,12 +19,12 @@ object EncryptedBackupManager {
     private const val PREFS_NAME = "desertcomm_secure_prefs"
 
     private fun deriveKey(password: String, salt: ByteArray): ByteArray {
-        val spec = PBEKeySpec(password.toCharArray(), salt, 65_536, 256)
+        val spec = PBEKeySpec(password.toCharArray(), salt, 210_000, 256)
         return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
     }
 
     fun exportEncryptedBackup(context: Context, password: String): Result<String> = runCatching {
-        if (password.length < 4) error("كلمة المرور يجب أن تكون 4 أحرف على الأقل")
+        if (password.length < 8) error("كلمة المرور يجب أن تكون 8 أحرف على الأقل")
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val bundle = JSONObject()
 
@@ -73,7 +73,7 @@ object EncryptedBackupManager {
     }
 
     fun restoreEncryptedBackup(context: Context, uri: Uri, password: String): Result<Int> = runCatching {
-        if (password.length < 4) error("أدخل كلمة مرور النسخة الاحتياطية")
+        if (password.length < 8) error("أدخل كلمة مرور النسخة الاحتياطية")
         val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
             ?: error("تعذر قراءة الملف")
         if (!raw.startsWith(MAGIC)) error("هذا الملف ليس نسخة احتياطية صالحة لتطبيق فارلو")

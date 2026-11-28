@@ -194,10 +194,6 @@ class MainActivity : ComponentActivity() {
                                             if (HardwareKeystore.verifyAppLockPin(this@MainActivity, pinTry)) {
                                                 isDuressMode = false
                                                 isUnlocked = true
-                                            } else if (pinTry == "0000") {
-                                                // رمز الذعر: يفتح واجهة فارغة آمنة بدون محادثات
-                                                isDuressMode = true
-                                                isUnlocked = true
                                             } else {
                                                 pinErr = true
                                                 pinTry = ""
@@ -454,11 +450,13 @@ fun ChatApp(
         val splitIdx = rawIn.indexOf(':')
         val clean = (if (splitIdx > 0) rawIn.substring(0, splitIdx) else rawIn).trim().uppercase()
         if (clean.startsWith("DC-")) {
-            if (splitIdx > 0) {
-                runCatching {
-                    val pk = Base64.decode(rawIn.substring(splitIdx + 1).trim(), Base64.NO_WRAP)
-                    if (pk.size == 32) HardwareKeystore.savePeerPublicKey(context, clean, pk)
-                }
+            val keyOk = if (splitIdx > 0) {
+                val pk = runCatching { Base64.decode(rawIn.substring(splitIdx + 1).trim(), Base64.NO_WRAP) }.getOrNull()
+                pk != null && pk.size == 32 && HardwareKeystore.savePeerPublicKey(context, clean, pk)
+            } else true
+            if (!keyOk) {
+                BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تم رفض QR: المفتاح لا يطابق $clean أو يختلف عن المفتاح المثبّت مسبقاً", "⚠️ QR rejected: key mismatch for $clean or conflicts with pinned key"))
+                return@rememberLauncherForActivityResult
             }
             ChatRepository.savePeer(context, clean)
             activeChatId = clean
@@ -799,18 +797,20 @@ fun ChatApp(
                         val splitIdx = rawIn.indexOf(':')
                         val clean = (if (splitIdx > 0) rawIn.substring(0, splitIdx) else rawIn).trim().uppercase()
                         if (clean.startsWith("DC-")) {
-                            if (splitIdx > 0) {
-                                runCatching {
-                                    val pk = Base64.decode(rawIn.substring(splitIdx + 1).trim(), Base64.NO_WRAP)
-                                    if (pk.size == 32) HardwareKeystore.savePeerPublicKey(context, clean, pk)
-                                }
-                            }
+                            val keyOk = if (splitIdx > 0) {
+                                val pk = runCatching { Base64.decode(rawIn.substring(splitIdx + 1).trim(), Base64.NO_WRAP) }.getOrNull()
+                                pk != null && pk.size == 32 && HardwareKeystore.savePeerPublicKey(context, clean, pk)
+                            } else true
+                            if (!keyOk) {
+                                BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تم رفض الكود: المفتاح لا يطابق $clean أو يختلف عن المفتاح المثبّت مسبقاً", "⚠️ Code rejected: key mismatch for $clean or conflicts with pinned key"))
+                            } else {
                             ChatRepository.savePeer(context, clean)
                             if (newPeerNickInput.isNotBlank()) ChatRepository.setNickname(context, clean, newPeerNickInput)
                             activeChatId = clean
                             showAddChatDialog = false
                             newPeerIdInput = ""
                             newPeerNickInput = ""
+                            }
                         }
                     }
                 }) { Text(if (createGroupMode) SadaStrings.tr("إنشاء", "Create") else SadaStrings.tr("بدء", "Start")) }
@@ -1735,7 +1735,7 @@ fun ChatApp(
                                         val keyB64 = parts.getOrNull(4) ?: ""
                                         val safeName = "${msg.uid}_${fName.replace(Regex("[^a-zA-Z0-9._-]"), "_")}"
                                         val expectedFile = remember(msg.uid, safeName) {
-                                            java.io.File(java.io.File(context.filesDir, "sada_media"), safeName)
+                                            com.desertcomm.core.EncryptedMediaTransfer.stableCacheFile(context, keyB64, fName).let { f -> if (f.exists() && f.length() > 0) f else java.io.File(java.io.File(context.filesDir, "sada_media"), safeName) }
                                         }
                                         var localFile by remember(msg.uid) { mutableStateOf(expectedFile.takeIf { it.exists() }) }
                                         val dlProgCheck = transferProgress[msg.uid]
@@ -1872,7 +1872,7 @@ fun ChatApp(
                 }
             }
 
-            if (transferProgress.isNotEmpty()) {
+            if (false && transferProgress.isNotEmpty()) {
                 val activeProg = transferProgress.values.firstOrNull() ?: 0f
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
                     Text(SadaStrings.tr("جاري تشفير ونقل الوسائط... ${(activeProg * 100).toInt()}%", "Encrypting & sending media... ${(activeProg * 100).toInt()}%"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)

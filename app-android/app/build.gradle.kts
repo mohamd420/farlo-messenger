@@ -15,8 +15,8 @@ android {
         applicationId = "com.desertcomm"
         minSdk = 26
         targetSdk = 37
-        versionCode = 59
-        versionName = "4.7.1"
+        versionCode = 82
+        versionName = "4.9"
         ndk { abiFilters += listOf("arm64-v8a") }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

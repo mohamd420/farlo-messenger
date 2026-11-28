@@ -28,3 +28,10 @@
 
 -keep class org.torproject.** { *; }
 -dontwarn org.torproject.**
+
+# Strip debug/verbose/info logs in release builds
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

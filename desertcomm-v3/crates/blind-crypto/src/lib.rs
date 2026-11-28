@@ -1,6 +1,7 @@
 //! طبقة التعمية، الهوية، واللقاء الزمكاني (v3.1)
 
 pub mod elligator2;
+pub mod pq_ratchet;
 
 use bip39::Mnemonic;
 use thiserror::Error;

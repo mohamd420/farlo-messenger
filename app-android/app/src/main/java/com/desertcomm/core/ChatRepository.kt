@@ -51,9 +51,50 @@ data class ChatMessage(
 object ChatRepository {
     private const val MSG_CHANNEL_ID = "desertcomm_messages_high"
 
+    private fun verifyAndPinSenderKeys(
+        appContext: Context,
+        sender: String,
+        senderPubB64: String,
+        sigB64: String?,
+        canonical: ByteArray
+    ): Boolean {
+        if (sigB64 == null) {
+            BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تم رفض رسالة غير موقّعة من $sender", "⚠️ Rejected unsigned message from $sender"))
+            return false
+        }
+        val sb = runCatching { Base64.decode(sigB64, Base64.NO_WRAP) }.getOrNull()
+        if (sb == null || sb.size != 96 || !NativeBridgeV3.verifySenderPayload(sb, canonical)) {
+            BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تم رفض رسالة مزوّرة التوقيع من $sender", "⚠️ Rejected forged signature from $sender"))
+            return false
+        }
+        val pk = runCatching { Base64.decode(senderPubB64, Base64.NO_WRAP) }.getOrNull()
+        if (pk == null || pk.size != 32) {
+            BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تم رفض مفتاح غير صالح من $sender", "⚠️ Rejected invalid public key from $sender"))
+            return false
+        }
+        if (sender.startsWith("DC-") && HardwareKeystore.deriveIdFromPubKey(pk) != sender) { BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تم رفض هوية مزوّرة: $sender", "⚠️ Rejected spoofed ID: $sender")); return false }
+        return synchronized(HardwareKeystore) {
+        val existingX25519 = HardwareKeystore.getPeerPublicKey(appContext, sender)
+        if (existingX25519 != null && !existingX25519.contentEquals(pk)) {
+            BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تحذير أمني: تغيّر مفتاح $sender — تحقق من رقم الأمان!", "⚠️ Security Alert: $sender key changed — verify Safety Number!"))
+            return@synchronized false
+        }
+        val edPrefs = appContext.getSharedPreferences("farlo_ed_pins", Context.MODE_PRIVATE)
+        val vkB64 = Base64.encodeToString(sb.copyOfRange(0, 32), Base64.NO_WRAP)
+        val pinnedEd = edPrefs.getString(sender, null)
+        if (pinnedEd != null && pinnedEd != vkB64) {
+            BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تحذير: تغيّر مفتاح توقيع $sender!", "⚠️ Alert: $sender signing key mismatch!"))
+            return@synchronized false
+        }
+        if (existingX25519 == null) HardwareKeystore.savePeerPublicKey(appContext, sender, pk)
+        if (pinnedEd == null) edPrefs.edit().putString(sender, vkB64).commit()
+        true
+        }
+    }
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private val cryptoExecutor = Executors.newFixedThreadPool(4)
-    private val mediaExecutor = Executors.newCachedThreadPool()
+    private val mediaExecutor = java.util.concurrent.ThreadPoolExecutor(2, 2, 30L, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.ArrayBlockingQueue(8), java.util.concurrent.ThreadPoolExecutor.DiscardPolicy())
     private val diskExecutor = Executors.newSingleThreadExecutor()
     private val dtnScheduler = Executors.newSingleThreadScheduledExecutor()
 
@@ -145,6 +186,33 @@ object ChatRepository {
 
     private val pendingMessages = mutableMapOf<Int, MutableList<ByteArray>>()
     private val completedMsgIds = LinkedHashSet<Int>()
+    private fun padEnvelopePayload(s: String): String {
+        val buckets = intArrayOf(256, 512, 1024, 2048)
+        val target = buckets.firstOrNull { it > s.length + 12 } ?: return s
+        val padLen = target - s.length - 12
+        val pad = Base64.encodeToString(ByteArray((padLen * 3 / 4) + 3).also { SecureRandom().nextBytes(it) }, Base64.NO_WRAP).take(padLen)
+        return "PAD|${s.length}|$s$pad"
+    }
+    private fun unpadEnvelopePayload(s: String): String {
+        if (!s.startsWith("PAD|")) return s
+        val p = s.split("|", limit = 3)
+        val len = p.getOrNull(1)?.toIntOrNull() ?: return s
+        val rest = p.getOrNull(2) ?: return s
+        return if (rest.length >= len) rest.substring(0, len) else s
+    }
+
+    private val pqActiveTags = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+    private val pqOfferedPeers = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+    @Volatile private var myPqDk: ByteArray? = null
+    @Volatile private var myPqEk: ByteArray? = null
+    private fun ensurePqKeys() {
+        if (myPqDk == null || myPqEk == null) {
+            NativeBridgeV3.pqGenerateMlkem768Keypair()?.takeIf { it.size == 2 }?.let {
+                myPqDk = it[0]; myPqEk = it[1]
+            }
+        }
+    }
+
     private val deliveredDtnIds = LinkedHashSet<String>()
     private fun markDeliveredOnce(ctx: Context, uid: String): Boolean {
         synchronized(deliveredDtnIds) {
@@ -226,6 +294,7 @@ object ChatRepository {
         WispLanMesh.start(appContext)
         _onlineEnabled.value = HardwareKeystore.isOnlineRelayEnabled(appContext)
         if (HardwareKeystore.isTorProxyEnabled(appContext)) { com.desertcomm.p2p.EmbeddedTorManager.start(appContext) { p -> OnlineBlindRelay.setTorEnabled(true, p) } } else { OnlineBlindRelay.setTorEnabled(false) }
+        OnlineBlindRelay.onRelayConnected = { mainHandler.postDelayed({ cryptoExecutor.execute { flushDtnOverOnline(appContext) } }, 1_500L) }
         OnlineBlindRelay.onEnvelopeReceived = { env ->
             cryptoExecutor.execute { handleIncoming(appContext, env) }
         }
@@ -361,7 +430,7 @@ object ChatRepository {
 
                 val matchedGroupId = _groups.value.keys.firstOrNull { blindDestTag(it) == destTag }
                 if (matchedGroupId != null && rawBody.startsWith("GRP:")) {
-                    if (markDeliveredOnce(appContext, bundleUid)) {
+                    if (true) {
                         val gKey = HardwareKeystore.getGroupKey(appContext, matchedGroupId)
                         if (gKey != null) {
                             val dec = runCatching {
@@ -371,10 +440,11 @@ object ChatRepository {
                             }.getOrNull()
                             if (dec != null && dec.startsWith("MSG|")) {
                                 val mp = dec.split("|", limit = 4)
-                                if (mp.size >= 3) {
+                                if (mp.size == 4) {
                                     val sender = mp[1].uppercase()
                                     if (sender != localId && !_blockedPeers.value.contains(sender)) {
-                                        val body = if (mp.size == 4) mp[3] else mp[2]
+                                        val gp = mp[2].split(".", limit = 2); val gCanon = "MSG|$sender|${gp[0]}|${mp[3]}".toByteArray(Charsets.UTF_8); if (!verifyAndPinSenderKeys(appContext, sender, gp[0], gp.getOrNull(1), gCanon)) return; if (!markDeliveredOnce(appContext, bundleUid)) return
+                                        val body = mp[3]
                                         val senderLabel = _nicknames.value[sender] ?: sender
                                         if (body.startsWith("PTT_LIVE|")) { mainHandler.post { com.desertcomm.p2p.SadaCallManager.onIncomingPttLive(appContext, bundleUid, body) }; return }
                             val displayBody = if (body.startsWith("VOICE:") || body.startsWith("IMG:")) body else "$senderLabel:\n$body"
@@ -406,7 +476,7 @@ object ChatRepository {
                     return
                 }
                 if (destTag == myTag || destTag == "*") {
-                    if (markDeliveredOnce(appContext, bundleUid)) {
+                    if (true) {
                         val decryptedInner = when {
                             rawBody.startsWith("BOX:") -> {
                                 val priv = myStaticPriv
@@ -418,31 +488,55 @@ object ChatRepository {
                                     }.getOrNull()
                                 } else null
                             }
-                            rawBody.startsWith("ENC:") -> {
+                            rawBody.startsWith("PQR:") -> {
                                 runCatching {
-                                    val ct = Base64.decode(rawBody.removePrefix("ENC:"), Base64.NO_WRAP)
-                                    val pt = NativeBridgeV3.openDtnBody(HardwareKeystore.getNetworkE2eeKey(appContext), ct)!!
-                                    String(pt, Charsets.UTF_8)
+                                    val pqrParts = rawBody.removePrefix("PQR:").split(":", limit = 2)
+                                    if (pqrParts.size == 2) {
+                                        val pkt = Base64.decode(pqrParts[1], Base64.NO_WRAP)
+                                        val pt = NativeBridgeV3.pqRatchetDecrypt(pqrParts[0], pkt) ?: return@runCatching null
+                                        String(pt, Charsets.UTF_8)
+                                    } else null
                                 }.getOrNull()
                             }
-                            else -> rawBody
+                            rawBody.startsWith("ENC:") -> null
+                            else -> null
                         }
-                        if (decryptedInner != null && decryptedInner.startsWith("MSG|")) {
-                            val mParts = decryptedInner.split("|", limit = 4)
-                            if (mParts.size >= 3) {
+                        val unpaddedInner = decryptedInner?.let { unpadEnvelopePayload(it) }; if (unpaddedInner != null && unpaddedInner.startsWith("MSG|")) {
+                            val mParts = unpaddedInner.split("|", limit = 4)
+                            if (mParts.size == 4) {
                                 val sender = mParts[1].uppercase()
                                 if (sender == localId) return
-                                val body = if (mParts.size == 4) {
-                                    val senderPubB64 = mParts[2]
-                                    runCatching {
-                                        val pk = Base64.decode(senderPubB64, Base64.NO_WRAP)
-                                        if (pk.size == 32) HardwareKeystore.savePeerPublicKey(appContext, sender, pk)
+                                val pubParts = mParts[2].split(".", limit = 2)
+                                val canonical = "MSG|$sender|${pubParts[0]}|${mParts[3]}".toByteArray(Charsets.UTF_8)
+                                if (!verifyAndPinSenderKeys(appContext, sender, pubParts[0], pubParts.getOrNull(1), canonical)) return
+                                val body = mParts[3]
+                                if (_blockedPeers.value.contains(sender)) return; if (!markDeliveredOnce(appContext, bundleUid)) return
+                                if (body == "PQ_RESET") { pqActiveTags.remove(blindDestTag(sender)); pqOfferedPeers.remove(sender); appendMessage(sender, ChatMessage(com.desertcomm.ui.SadaStrings.tr("⚠️ تم إعادة ضبط جلسة التشفير الكمي — تحقق من رقم الأمان", "⚠️ PQ session reset — verify Safety Number"), isMe = false, timeText = nowTime())); return }
+                                if (body.startsWith("PQ_OFFER|")) {
+                                    val peerEk = runCatching { Base64.decode(body.removePrefix("PQ_OFFER|").trim(), Base64.NO_WRAP) }.getOrNull()
+                                    val myPriv = myStaticPriv
+                                    val peerPub = HardwareKeystore.getPeerPublicKey(appContext, sender)
+                                    if (peerEk != null && myPriv != null && peerPub != null) {
+                                        val ct = NativeBridgeV3.pqInitiateSession(blindDestTag(sender), peerEk, myPriv, peerPub, peerPub)
+                                        if (ct != null) {
+                                            pqActiveTags.add(blindDestTag(sender))
+                                            sendControlEnvelope(appContext, sender, "PQ_ACCEPT|" + Base64.encodeToString(ct, Base64.NO_WRAP), SendTransportMode.LOCAL_DIRECT)
+                                        }
                                     }
-                                    mParts[3]
-                                } else {
-                                    mParts[2]
+                                    return
                                 }
-                                if (_blockedPeers.value.contains(sender)) return
+                                if (body.startsWith("PQ_ACCEPT|")) {
+                                    val ct = runCatching { Base64.decode(body.removePrefix("PQ_ACCEPT|").trim(), Base64.NO_WRAP) }.getOrNull()
+                                    val myPriv = myStaticPriv
+                                    val dk = myPqDk
+                                    val peerPub = HardwareKeystore.getPeerPublicKey(appContext, sender)
+                                    if (ct != null && myPriv != null && dk != null && peerPub != null) {
+                                        if (NativeBridgeV3.pqAcceptSession(blindDestTag(sender), dk, ct, myPriv, peerPub, myPriv)) {
+                                            pqActiveTags.add(blindDestTag(sender))
+                                        }
+                                    }
+                                    return
+                                }
                                 if (body.startsWith("EDIT|")) {
                                     val ep = body.split("|", limit = 3)
                                     if (ep.size == 3) {
@@ -475,8 +569,9 @@ object ChatRepository {
                     }
                     if (body.startsWith("HDIMG|") || body.startsWith("HDVOICE|")) {
                         val mp = body.split("|")
-                        if (mp.size >= 5) {
-                            downloadMediaForMessage(appContext, bundleUid, mp[1], mp[3], mp[4]) {}
+                        val declBytes = mp.getOrNull(2)?.toLongOrNull() ?: Long.MAX_VALUE
+                        if (mp.size >= 5 && declBytes in 1..(8L * 1024L * 1024L) && mediaExecutor.activeCount < 2 && mediaExecutor.queue.size < 4) {
+                            downloadMediaForMessage(appContext, bundleUid, mp[1], mp[3], mp[4], maxBytes = 8L * 1024L * 1024L) {}
                         }
                     }
                     if (body.startsWith("EXP|")) {
@@ -516,6 +611,36 @@ object ChatRepository {
         appendMessage(fallback, ChatMessage(rawText, isMe = false, timeText = nowTime()))
         if (!isUiInForeground && !HardwareKeystore.isMuted(appContext)) {
             showIncomingNotification(appContext, fallback, fallback, rawText)
+        }
+    }
+
+    private fun flushDtnOverOnline(appContext: Context) {
+        if (!_onlineEnabled.value || !OnlineBlindRelay.isOnlineConnected.value) return
+        val relays = NativeBridgeV3.dtnListRelayBundles(System.currentTimeMillis()) ?: return
+        if (relays.isEmpty()) return
+        var sentAny = false
+        relays.forEach { bundleBytes ->
+            val env = String(bundleBytes, Charsets.UTF_8)
+            val p = env.split("|", limit = 5)
+            val uid = p.getOrNull(1).orEmpty()
+            val destTag = p.getOrNull(2).orEmpty()
+            if (uid.isNotEmpty() && destTag.isNotEmpty()) {
+                OnlineBlindRelay.publishEnvelope(destTag, env) { ok ->
+                    if (ok) {
+                        _conversations.value.keys.forEach { cid -> updateMessageBadgeIfPending(cid, uid, "✓") }
+                    }
+                }
+                sentAny = true
+            }
+        }
+        if (sentAny) {
+            mainHandler.postDelayed({
+                cryptoExecutor.execute {
+                    NativeBridgeV3.dtnClearStore()
+                    diskExecutor.execute { HardwareKeystore.persistDtnBundles(appContext, emptyList()) }
+                    _dtnQueuedCount.value = 0
+                }
+            }, 3_000L)
         }
     }
 
@@ -583,16 +708,26 @@ object ChatRepository {
             return
         }
         val uid = UUID.randomUUID().toString().take(8)
-        setProgress(uid, 0.05f)
+        val cleanName = fileName.replace("|", "_")
+        val tempKey = "LOCAL_$uid"
+        runCatching { EncryptedMediaTransfer.stableCacheFile(appContext, tempKey, cleanName).writeBytes(rawBytes) }
+        appendMessage(chatId, ChatMessage("$kindPrefix|$cleanName|${rawBytes.size}|local|$tempKey", isMe = true, timeText = nowTime(), statusBadge = "⏳", uid = uid))
         mediaExecutor.execute {
-            EncryptedMediaTransfer.encryptAndUploadBytes(appContext, rawBytes, fileName) { p ->
-                setProgress(uid, p)
+            EncryptedMediaTransfer.encryptAndUploadBytes(appContext, rawBytes, fileName) { _ ->
             }.onSuccess { res ->
-                setProgress(uid, null)
-                val payload = "$kindPrefix|${res.fileName}|${res.sizeBytes}|${res.downloadUrl}|${res.keyB64}"
-                sendMessage(appContext, chatId, payload, sendMode)
+                mainHandler.post {
+                    val cur = _conversations.value.toMutableMap()
+                    cur[chatId] = cur[chatId].orEmpty().filterNot { it.uid == uid }
+                    _conversations.value = cur
+                    val payload = "$kindPrefix|${res.fileName}|${res.sizeBytes}|${res.downloadUrl}|${res.keyB64}"
+                    synchronized(pqActiveTags) { Thread.sleep(300); sendMessage(appContext, chatId, payload, sendMode) }
+                }
             }.onFailure { err ->
-                setProgress(uid, null)
+                mainHandler.post {
+                    val cur = _conversations.value.toMutableMap()
+                    cur[chatId] = cur[chatId].orEmpty().map { if (it.uid == uid) it.copy(statusBadge = "⚠️") else it }
+                    _conversations.value = cur
+                }
                 BleManager.setStatus("فشل رفع الملف: ${err.message}")
             }
         }
@@ -604,11 +739,12 @@ object ChatRepository {
         fileName: String,
         url: String,
         keyB64: String,
+        maxBytes: Long = 25L * 1024L * 1024L,
         onReady: (java.io.File) -> Unit
     ) {
-        setProgress(msgUid, 0.05f)
+        val cachedFile = EncryptedMediaTransfer.stableCacheFile(appContext, keyB64, fileName); if (cachedFile.exists() && cachedFile.length() > 0) { mainHandler.post { onReady(cachedFile) }; return }; setProgress(msgUid, 0.05f)
         mediaExecutor.execute {
-            EncryptedMediaTransfer.downloadAndDecryptToFile(appContext, msgUid, url, keyB64, fileName) { p ->
+            EncryptedMediaTransfer.downloadAndDecryptToFile(appContext, msgUid, url, keyB64, fileName, maxBytes) { p ->
                 setProgress(msgUid, p)
             }.onSuccess { file ->
                 setProgress(msgUid, null)
@@ -660,24 +796,22 @@ object ChatRepository {
             diskExecutor.execute { savePeer(appContext, chatId) }
             val localId = _myId.value
             val myPubB64 = myStaticPub?.let { Base64.encodeToString(it, Base64.NO_WRAP) } ?: ""
-            val innerPayload = "MSG|$localId|$myPubB64|$textToSend"
+            val rawSignInput = "MSG|$localId|$myPubB64|$textToSend"; val sigB64 = myStaticPriv?.let { NativeBridgeV3.signSenderPayload(it, rawSignInput.toByteArray(Charsets.UTF_8)) }?.let { Base64.encodeToString(it, Base64.NO_WRAP) }; val pubField = if (sigB64 != null) "$myPubB64.$sigB64" else myPubB64; val innerPayload = "MSG|$localId|$pubField|$textToSend"
             val groupKey = if (chatId.startsWith("GRP-")) HardwareKeystore.getGroupKey(appContext, chatId) else null
             val recipientPub = if (groupKey == null) HardwareKeystore.getPeerPublicKey(appContext, chatId) else null
             val encryptedBody = when {
                 groupKey != null -> runCatching {
                     val ct = NativeBridgeV3.sealDtnBody(groupKey, innerPayload.toByteArray(Charsets.UTF_8))!!
                     "GRP:" + Base64.encodeToString(ct, Base64.NO_WRAP)
-                }.getOrElse { innerPayload }
-                recipientPub != null -> runCatching {
-                    val box = NativeBridgeV3.sealToRecipient(recipientPub, innerPayload.toByteArray(Charsets.UTF_8))!!
+                }.getOrElse { BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("فشل التشفير — تم إيقاف الإرسال لحمايتك", "Encryption failed — send aborted")); return@execute }
+                recipientPub != null && pqActiveTags.contains(blindDestTag(chatId)) -> runCatching { val pkt = synchronized(pqActiveTags) { NativeBridgeV3.pqRatchetEncrypt(blindDestTag(chatId), padEnvelopePayload(innerPayload).toByteArray(Charsets.UTF_8))!! }; "PQR:${blindDestTag(localId)}:" + Base64.encodeToString(pkt, Base64.NO_WRAP) }.getOrElse { pqActiveTags.remove(blindDestTag(chatId)); pqOfferedPeers.remove(chatId); BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تعذّر تشفير جلسة PQ — أعد المحاولة لإعادة المزامنة", "⚠️ PQ session encrypt failed — retry to resync")); return@execute }
+                recipientPub != null -> runCatching { if (OnlineBlindRelay.isOnlineConnected.value && !textToSend.startsWith("PQ_") && pqOfferedPeers.add(chatId)) { ensurePqKeys(); myPqEk?.let { ek -> sendControlEnvelope(appContext, chatId, "PQ_OFFER|" + Base64.encodeToString(ek, Base64.NO_WRAP), sendMode) } }
+                    val box = NativeBridgeV3.sealToRecipient(recipientPub, padEnvelopePayload(innerPayload).toByteArray(Charsets.UTF_8))!!
                     "BOX:" + Base64.encodeToString(box, Base64.NO_WRAP)
-                }.getOrElse { innerPayload }
+                }.getOrElse { BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("فشل التشفير — تم إيقاف الإرسال لحمايتك", "Encryption failed — send aborted")); return@execute }
                 else -> {
-                    val e2eeKey = HardwareKeystore.getNetworkE2eeKey(appContext)
-                    runCatching {
-                        val ct = NativeBridgeV3.sealDtnBody(e2eeKey, innerPayload.toByteArray(Charsets.UTF_8))!!
-                        "ENC:" + Base64.encodeToString(ct, Base64.NO_WRAP)
-                    }.getOrElse { innerPayload }
+                    BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("يرجى مسح QR أو لصق الكود الكامل للجهة قبل الإرسال (ممنوع التشفير بدون مفتاح المستلم)", "Scan QR or paste contact's full invite code first (recipient key required)"))
+                    return@execute
                 }
             }
             val destTag = blindDestTag(chatId)
@@ -696,7 +830,7 @@ object ChatRepository {
                         diskExecutor.execute { HardwareKeystore.persistDtnBundles(appContext, all.toList()) }
                         _dtnQueuedCount.value = all.size
                         // محاولة اتصال BLE فورية بالهدف أو أقرب وسيط بدون انتظار 15 ثانية
-                        val peersNow = BleManager.peers.value
+                        val peersNow = BleManager.peers.value; if (peersNow.isEmpty()) BleManager.startDiscoveryAndServer(appContext, localId)
                         val direct = peersNow.firstOrNull { it.id.equals(chatId, ignoreCase = true) } ?: peersNow.firstOrNull()
                         if (direct != null && BleManager.bleState.value != BleState.CONNECTING) {
                             BleManager.connectToDevice(appContext, direct.device)
@@ -707,14 +841,14 @@ object ChatRepository {
                     if (wfdConnected) {
                         WifiDirectManager.sendFrame(dtnEnvelope.toByteArray(Charsets.UTF_8))
                     }
-                    if (isSecure && key != null) {
+                    val onlineReady = _onlineEnabled.value && OnlineBlindRelay.isOnlineConnected.value
+                    if (!onlineReady && isSecure && key != null) {
                         NativeBridge.safeSeal(key, dtnEnvelope.toByteArray(Charsets.UTF_8)).onSuccess { packets ->
                             val mid = SecureRandom().nextInt()
                             val framed = packets.map { pkt -> ByteBuffer.allocate(4 + pkt.size).putInt(mid).put(pkt).array() }
                             BleManager.sendPackets(framed)
                         }
                     }
-                    val onlineReady = _onlineEnabled.value && OnlineBlindRelay.isOnlineConnected.value
                     if (onlineReady) {
                         val needAckRetry = !textToSend.startsWith("WEBRTC_") && !textToSend.startsWith("PTT_LIVE|") && !textToSend.startsWith("ACK|") && !chatId.startsWith("GRP-")
                         if (needAckRetry) scheduleDeliveryRetry(chatId, msgUid, destTag, dtnEnvelope)
@@ -731,7 +865,7 @@ object ChatRepository {
                     }
                 }
                 SendTransportMode.SUB_NOISE_8FSK -> {
-                    SubNoiseAudioModem.transmitTextOverAudio(textToSend.toByteArray(Charsets.UTF_8))
+                    SubNoiseAudioModem.transmitTextOverAudio(dtnEnvelope.toByteArray(Charsets.UTF_8))
                         .onFailure { err -> BleManager.setStatus("فشل 8-FSK: ${err.message}") }
                 }
                 SendTransportMode.SATELLITE_NTN -> {
@@ -901,26 +1035,20 @@ object ChatRepository {
     private fun sendControlEnvelope(appContext: Context, chatId: String, controlBody: String, sendMode: SendTransportMode) {
         val localId = _myId.value
         val myPubB64 = myStaticPub?.let { Base64.encodeToString(it, Base64.NO_WRAP) } ?: ""
-        val innerPayload = "MSG|$localId|$myPubB64|$controlBody"
+        val rawCtrl = "MSG|$localId|$myPubB64|$controlBody"; val ctrlSig = myStaticPriv?.let { NativeBridgeV3.signSenderPayload(it, rawCtrl.toByteArray(Charsets.UTF_8)) }?.let { Base64.encodeToString(it, Base64.NO_WRAP) }; val ctrlPub = if (ctrlSig != null) "$myPubB64.$ctrlSig" else myPubB64; val innerPayload = "MSG|$localId|$ctrlPub|$controlBody"
         val groupKey = if (chatId.startsWith("GRP-")) HardwareKeystore.getGroupKey(appContext, chatId) else null
         val recipientPub = if (groupKey == null) HardwareKeystore.getPeerPublicKey(appContext, chatId) else null
         val encryptedBody = if (groupKey != null) {
             runCatching {
                 val ct = NativeBridgeV3.sealDtnBody(groupKey, innerPayload.toByteArray(Charsets.UTF_8))!!
                 "GRP:" + Base64.encodeToString(ct, Base64.NO_WRAP)
-            }.getOrElse { innerPayload }
+            }.getOrElse { BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("فشل التشفير — تم إيقاف الإرسال لحمايتك", "Encryption failed — send aborted")); return }
         } else if (recipientPub != null) {
             runCatching {
-                val box = NativeBridgeV3.sealToRecipient(recipientPub, innerPayload.toByteArray(Charsets.UTF_8))!!
+                val box = NativeBridgeV3.sealToRecipient(recipientPub, padEnvelopePayload(innerPayload).toByteArray(Charsets.UTF_8))!!
                 "BOX:" + Base64.encodeToString(box, Base64.NO_WRAP)
-            }.getOrElse { innerPayload }
-        } else {
-            val e2eeKey = HardwareKeystore.getNetworkE2eeKey(appContext)
-            runCatching {
-                val ct = NativeBridgeV3.sealDtnBody(e2eeKey, innerPayload.toByteArray(Charsets.UTF_8))!!
-                "ENC:" + Base64.encodeToString(ct, Base64.NO_WRAP)
-            }.getOrElse { innerPayload }
-        }
+            }.getOrElse { BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("فشل التشفير — تم إيقاف الإرسال لحمايتك", "Encryption failed — send aborted")); return }
+        } else { return }
         val dtnEnvelope = "DTN|${UUID.randomUUID().toString().take(8)}|${blindDestTag(chatId)}|0|$encryptedBody"
         val key = sessionKey
         val isSecure = BleManager.bleState.value == BleState.CONNECTED_SECURE && key != null

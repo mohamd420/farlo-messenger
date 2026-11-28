@@ -35,7 +35,7 @@
 
 ## Security Status (Public Beta)
 
-Farlo v4.7 is an open-source **Public Beta** released for community testing and security review. It has **not yet undergone an independent third-party cryptographic audit**. For responsible disclosure and threat-model details, see `SECURITY.md`.
+Farlo v4.9 is an open-source **Public Beta** released for community testing and security review. It has **not yet undergone an independent third-party cryptographic audit**. For responsible disclosure and threat-model details, see `SECURITY.md` — **Public Beta (Not Independently Audited)**. First-contact identity pinning uses **Trust On First Use (TOFU)**; always verify Safety Numbers or scan QR codes out-of-band before treating a contact as verified..
 
 ## Roadmap (v5.0 & Beyond)
 

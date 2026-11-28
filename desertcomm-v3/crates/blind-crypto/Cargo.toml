@@ -14,3 +14,4 @@ ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 rand = "0.8"
 bip39 = "2.1"
 num-bigint = "0.4"
+ml-kem = "0.2"

@@ -44,6 +44,15 @@ object NativeBridgeV3 {
             ?: error("CRV derivation returned null")
     }
 
+    external fun signSenderPayload(staticPriv: ByteArray, payload: ByteArray): ByteArray?
+    external fun verifySenderPayload(sigBundle: ByteArray, payload: ByteArray): Boolean
+    external fun buildNostrEventK256(pTagHex: String, content: String, createdAt: Long, kind: Int): String?
+    external fun pqGenerateMlkem768Keypair(): Array<ByteArray>?
+    external fun pqInitiateSession(peerId: String, peerEk: ByteArray, myXPriv: ByteArray, peerXPub: ByteArray, peerRatchetPub: ByteArray): ByteArray?
+    external fun pqAcceptSession(peerId: String, myDk: ByteArray, mlkemCt: ByteArray, myXPriv: ByteArray, peerXPub: ByteArray, myRatchetPriv: ByteArray): Boolean
+    external fun pqRatchetEncrypt(peerId: String, plaintext: ByteArray): ByteArray?
+    external fun pqRatchetDecrypt(peerId: String, packet: ByteArray): ByteArray?
+
     fun safeGenerateElligatorKeypair(): Result<Triple<ByteArray, ByteArray, ByteArray>> = runCatching {
         val arr = generateElligatorKeypair() ?: error("Elligator2 keygen returned null")
         require(arr.size == 3) { "Expected 3 arrays" }

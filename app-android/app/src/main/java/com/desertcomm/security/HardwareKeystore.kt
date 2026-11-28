@@ -202,12 +202,18 @@ object HardwareKeystore {
         return "DC-" + hash.take(4).joinToString("") { "%02X".format(it) }
     }
 
-    fun savePeerPublicKey(context: Context, peerId: String, pubKey: ByteArray) {
-        if (pubKey.size != 32) return
+    @Synchronized
+    fun savePeerPublicKey(context: Context, peerId: String, pubKey: ByteArray): Boolean {
+        if (pubKey.size != 32) return false
+        val normId = peerId.trim().uppercase()
+        if (normId.startsWith("DC-") && deriveIdFromPubKey(pubKey) != normId) return false
+        val existing = getPeerPublicKey(context, normId)
+        if (existing != null) return existing.contentEquals(pubKey)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString("pub_${peerId.trim().uppercase()}", Base64.encodeToString(pubKey, Base64.NO_WRAP)).apply()
+        return prefs.edit().putString("pub_$normId", Base64.encodeToString(pubKey, Base64.NO_WRAP)).commit()
     }
 
+    @Synchronized
     fun getPeerPublicKey(context: Context, peerId: String): ByteArray? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val b64 = prefs.getString("pub_${peerId.trim().uppercase()}", null) ?: return null
@@ -297,18 +303,29 @@ object HardwareKeystore {
         if (pin.isNullOrBlank()) {
             prefs.edit().remove("app_lock_pin_hash").apply()
         } else {
-            val hash = MessageDigest.getInstance("SHA-256").digest("SADA-PIN:$pin".toByteArray(Charsets.UTF_8))
-                .joinToString("") { "%02x".format(it) }
-            prefs.edit().putString("app_lock_pin_hash", hash).apply()
+            val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
+            val spec = javax.crypto.spec.PBEKeySpec(pin.toCharArray(), salt, 100_000, 256)
+            val dk = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            prefs.edit().putString("app_lock_pin_hash", "pbkdf2:" + Base64.encodeToString(salt, Base64.NO_WRAP) + ":" + Base64.encodeToString(dk, Base64.NO_WRAP)).apply()
         }
     }
 
     fun verifyAppLockPin(context: Context, pin: String): Boolean {
         val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString("app_lock_pin_hash", null) ?: return true
-        val hash = MessageDigest.getInstance("SHA-256").digest("SADA-PIN:$pin".toByteArray(Charsets.UTF_8))
+        if (stored.startsWith("pbkdf2:")) {
+            val p = stored.split(":")
+            if (p.size != 3) return false
+            val salt = Base64.decode(p[1], Base64.NO_WRAP)
+            val expected = Base64.decode(p[2], Base64.NO_WRAP)
+            val spec = javax.crypto.spec.PBEKeySpec(pin.toCharArray(), salt, 100_000, 256)
+            val actual = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            return MessageDigest.isEqual(expected, actual)
+        }
+        val legacy = MessageDigest.getInstance("SHA-256").digest("SADA-PIN:$pin".toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
-        return stored == hash
+        if (stored == legacy) { setAppLockPin(context, pin); return true }
+        return false
     }
 
     fun isTorProxyEnabled(context: Context): Boolean =
@@ -330,7 +347,7 @@ object HardwareKeystore {
             .getString("relay_server_url", "https://ntfy.sh") ?: "https://ntfy.sh"
 
     fun setRelayServerUrl(context: Context, url: String) {
-        val clean = url.trim().trimEnd('/').ifEmpty { "https://ntfy.sh" }
+        val raw = url.trim().trimEnd('/'); val clean = if (raw.startsWith("https://", true)) raw else "https://ntfy.sh"
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString("relay_server_url", clean).apply()
     }
 

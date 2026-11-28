@@ -138,7 +138,7 @@ object NostrCrypto {
     }
 
     fun buildSignedEventJson(pTagHex: String, content: String, kind: Int = 1059): String {
-        val createdAt = System.currentTimeMillis() / 1000L
+        val createdAt = System.currentTimeMillis() / 1000L; com.desertcomm.core.NativeBridgeV3.buildNostrEventK256(pTagHex, content, createdAt, kind)?.let { return it }
         val pk = pubKeyHex
         val escTag = jsonEscape(pTagHex)
         val escContent = jsonEscape(content)

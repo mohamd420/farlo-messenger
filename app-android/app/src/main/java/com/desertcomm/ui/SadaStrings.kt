@@ -74,7 +74,7 @@ object SadaStrings {
     private val ar = SadaLang(
         isRtl = true, appTitle = "Farlo", lockedTitle = "Farlo مقفل", enterPin = "أدخل الرمز السري (PIN)",
         wrongPin = "الرمز غير صحيح", unlockBtn = "فتح التطبيق", biometricBtn = "البصمة",
-        duressHint = "ملاحظة: الرمز 0000 يفتح وضع الذعر الفارغ", noChats = "لا توجد محادثات حالياً",
+        duressHint = "", noChats = "لا توجد محادثات حالياً",
         settings = "الإعدادات", close = "إغلاق", cancel = "إلغاء", send = "إرسال", copy = "نسخ",
         messageHint = "رسالة...", photoHd = "صورة HD", fileVideo = "ملف / فيديو", myLocation = "موقعي",
         walkieTalkie = "لاسلكي", voiceCall = "مكالمة", disappear = "اختفاء",
@@ -83,7 +83,7 @@ object SadaStrings {
         relaysDesc = "يتصل Farlo بعدة عقد مستقلة بالتوازي لضمان وصول رسائلك المشفرة بدون نقطة فشل واحدة.",
         connected = "متصل", connecting = "محاولة...", exportBtn = "تصدير", restoreBtn = "استعادة",
         backupTitle = "النسخ الاحتياطي المشفّر", backupDesc = "احفظ هويتك ومحادثاتك في ملف مشفّر بكلمة مرور لاستعادتها على أي هاتف.",
-        backupPwdLabel = "كلمة مرور التشفير (4 أحرف+)", pttTitle = "لاسلكي Farlo الحي • Live PTT",
+        backupPwdLabel = "كلمة مرور التشفير (8 أحرف+)", pttTitle = "لاسلكي Farlo الحي • Live PTT",
         pttHold = "اضغط مطوّلاً", pttTalking = "يبث الآن", pttReceiving = "يستقبل",
         callIncoming = "مكالمة صوتية مشفّرة واردة...", callOutgoing = "جاري الاتصال المشفّر...",
         callActive = "مكالمة مشفّرة E2EE", callAccept = "رد", callDecline = "رفض", callEnd = "إنهاء",
@@ -94,7 +94,7 @@ object SadaStrings {
     private val en = SadaLang(
         isRtl = false, appTitle = "Farlo", lockedTitle = "Farlo Locked", enterPin = "Enter PIN",
         wrongPin = "Incorrect PIN", unlockBtn = "Unlock", biometricBtn = "Biometrics",
-        duressHint = "Note: PIN 0000 opens empty decoy mode", noChats = "No conversations yet",
+        duressHint = "", noChats = "No conversations yet",
         settings = "Settings", close = "Close", cancel = "Cancel", send = "Send", copy = "Copy",
         messageHint = "Message...", photoHd = "HD Photo", fileVideo = "File / Video", myLocation = "Location",
         walkieTalkie = "PTT Radio", voiceCall = "Call", disappear = "Timer",
@@ -103,7 +103,7 @@ object SadaStrings {
         relaysDesc = "Farlo connects to multiple independent relays in parallel for resilient E2EE delivery.",
         connected = "Connected", connecting = "Connecting...", exportBtn = "Export", restoreBtn = "Restore",
         backupTitle = "Encrypted Backup", backupDesc = "Export your identity & chats into a password-encrypted file to restore on any device.",
-        backupPwdLabel = "Encryption Password (4+ chars)", pttTitle = "Farlo Live Walkie-Talkie • PTT",
+        backupPwdLabel = "Encryption Password (8+ chars)", pttTitle = "Farlo Live Walkie-Talkie • PTT",
         pttHold = "Hold to Talk", pttTalking = "Transmitting", pttReceiving = "Receiving",
         callIncoming = "Incoming Encrypted Voice Call...", callOutgoing = "Calling (E2EE)...",
         callActive = "E2EE Voice Call", callAccept = "Answer", callDecline = "Decline", callEnd = "End",
@@ -114,7 +114,7 @@ object SadaStrings {
     private val fr = SadaLang(
         isRtl = false, appTitle = "Farlo", lockedTitle = "Farlo Verrouillé", enterPin = "Code PIN",
         wrongPin = "Code PIN incorrect", unlockBtn = "Déverrouiller", biometricBtn = "Biométrie",
-        duressHint = "Info : le code 0000 ouvre le mode leurre vide", noChats = "Aucune conversation",
+        duressHint = "", noChats = "Aucune conversation",
         settings = "Paramètres", close = "Fermer", cancel = "Annuler", send = "Envoyer", copy = "Copier",
         messageHint = "Message...", photoHd = "Photo HD", fileVideo = "Fichier / Vidéo", myLocation = "Position",
         walkieTalkie = "Talkie PTT", voiceCall = "Appel", disappear = "Éphémère",
@@ -134,7 +134,7 @@ object SadaStrings {
     private val es = SadaLang(
         isRtl = false, appTitle = "Farlo", lockedTitle = "Farlo Bloqueado", enterPin = "Ingresar PIN",
         wrongPin = "PIN incorrecto", unlockBtn = "Desbloquear", biometricBtn = "Biometría",
-        duressHint = "Nota: el PIN 0000 abre el modo señuelo vacío", noChats = "Sin conversaciones",
+        duressHint = "", noChats = "Sin conversaciones",
         settings = "Ajustes", close = "Cerrar", cancel = "Cancelar", send = "Enviar", copy = "Copiar",
         messageHint = "Mensaje...", photoHd = "Foto HD", fileVideo = "Archivo / Video", myLocation = "Ubicación",
         walkieTalkie = "Radio PTT", voiceCall = "Llamar", disappear = "Temporal",
@@ -154,7 +154,7 @@ object SadaStrings {
     private val de = SadaLang(
         isRtl = false, appTitle = "Farlo", lockedTitle = "Farlo Gesperrt", enterPin = "PIN eingeben",
         wrongPin = "Falsche PIN", unlockBtn = "Entsperren", biometricBtn = "Biometrie",
-        duressHint = "Hinweis: PIN 0000 öffnet den leeren Tarnmodus", noChats = "Keine Chats vorhanden",
+        duressHint = "", noChats = "Keine Chats vorhanden",
         settings = "Einstellungen", close = "Schließen", cancel = "Abbrechen", send = "Senden", copy = "Kopieren",
         messageHint = "Nachricht...", photoHd = "HD-Foto", fileVideo = "Datei / Video", myLocation = "Standort",
         walkieTalkie = "Funk PTT", voiceCall = "Anruf", disappear = "Timer",

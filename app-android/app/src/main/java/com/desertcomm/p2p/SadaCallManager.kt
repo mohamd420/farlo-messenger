@@ -186,9 +186,9 @@ object SadaCallManager {
 
     private fun createPeerConnection(appContext: Context, cid: String, peerId: String, sendMode: SendTransportMode): PeerConnection {
         val f = ensureFactory(appContext)
-        val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
+        val activeIce = if (com.desertcomm.security.HardwareKeystore.isTorProxyEnabled(appContext)) emptyList() else iceServers; val rtcConfig = PeerConnection.RTCConfiguration(activeIce).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
-            iceTransportsType = PeerConnection.IceTransportsType.ALL
+            iceTransportsType = if (com.desertcomm.security.HardwareKeystore.isTorProxyEnabled(appContext)) PeerConnection.IceTransportsType.RELAY else PeerConnection.IceTransportsType.ALL
             continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_ONCE
         }
         val pc = f.createPeerConnection(rtcConfig, object : PeerConnection.Observer {

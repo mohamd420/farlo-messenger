@@ -151,7 +151,7 @@ pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_sealRaptorQ(
         Err(e) => { throw(&mut env, &format!("new_object_array: {e}")); return std::ptr::null_mut(); }
     };
 
-    let cfg_arr = env.byte_array_from_slice(&cfg_bytes).unwrap();
+    let cfg_arr = match env.byte_array_from_slice(&cfg_bytes) { Ok(a) => a, Err(e) => { throw(&mut env, &format!("cfg_arr: {e}")); return std::ptr::null_mut(); } };
     let _ = env.set_object_array_element(&out, 0, &cfg_arr);
     for (i, p) in pkts.iter().enumerate() {
         if let Ok(a) = env.byte_array_from_slice(p) {
@@ -177,7 +177,7 @@ pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_openRaptorQ(
         _ => { throw(&mut env, "packets must include config + >=1 packet"); return std::ptr::null_mut(); }
     };
 
-    let cfg_obj = JByteArray::from(env.get_object_array_element(&packets, 0).unwrap());
+    let cfg_obj = match env.get_object_array_element(&packets, 0) { Ok(o) => JByteArray::from(o), Err(e) => { throw(&mut env, &format!("cfg_obj: {e}")); return std::ptr::null_mut(); } };
     let cfg_bytes = env.convert_byte_array(&cfg_obj).unwrap_or_default();
     if cfg_bytes.len() != 12 {
         throw(&mut env, "invalid RaptorQ OTI config");
@@ -503,4 +503,186 @@ pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_decodeSubNoise8Fs
         Some(bytes) => env.byte_array_from_slice(&bytes).map(|a| a.into_raw()).unwrap_or(std::ptr::null_mut()),
         None => std::ptr::null_mut(),
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_signSenderPayload(
+    mut env: JNIEnv,
+    _this: JObject,
+    static_priv: JByteArray,
+    payload: JByteArray,
+) -> jbyteArray {
+    use ed25519_dalek::{Signer, SigningKey};
+    use zeroize::Zeroize;
+    let mut priv_bytes = match env.convert_byte_array(&static_priv) {
+        Ok(b) if b.len() == 32 => b,
+        _ => return std::ptr::null_mut(),
+    };
+    let msg = match env.convert_byte_array(&payload) {
+        Ok(b) => b,
+        Err(_) => { priv_bytes.zeroize(); return std::ptr::null_mut(); }
+    };
+    let mut seed = blake3::derive_key("farlo-v48-ed25519-sender-auth", &priv_bytes);
+    priv_bytes.zeroize();
+    let sk = SigningKey::from_bytes(&seed);
+    seed.zeroize();
+    let vk = sk.verifying_key();
+    let sig = sk.sign(&msg);
+    let mut out = Vec::with_capacity(96);
+    out.extend_from_slice(vk.as_bytes());
+    out.extend_from_slice(&sig.to_bytes());
+    match env.byte_array_from_slice(&out) {
+        Ok(arr) => arr.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_verifySenderPayload(
+    env: JNIEnv,
+    _this: JObject,
+    sig_bundle: JByteArray,
+    payload: JByteArray,
+) -> jni::sys::jboolean {
+    use ed25519_dalek::{Signature, VerifyingKey};
+    let bundle = match env.convert_byte_array(&sig_bundle) {
+        Ok(b) if b.len() == 96 => b,
+        _ => return 0,
+    };
+    let msg = match env.convert_byte_array(&payload) {
+        Ok(b) => b,
+        Err(_) => return 0,
+    };
+    let vk_bytes: [u8; 32] = match bundle[0..32].try_into() { Ok(a) => a, Err(_) => return 0 };
+    let sig_bytes: [u8; 64] = match bundle[32..96].try_into() { Ok(a) => a, Err(_) => return 0 };
+    let vk = match VerifyingKey::from_bytes(&vk_bytes) { Ok(v) => v, Err(_) => return 0 };
+    let sig = Signature::from_bytes(&sig_bytes);
+    if vk.verify_strict(&msg, &sig).is_ok() { 1 } else { 0 }
+}
+
+fn farlo_json_esc(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn farlo_hex(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes { s.push_str(&format!("{:02x}", b)); }
+    s
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_buildNostrEventK256(
+    mut env: JNIEnv,
+    _this: JObject,
+    p_tag_hex: jni::objects::JString,
+    content: jni::objects::JString,
+    created_at: jni::sys::jlong,
+    kind: jni::sys::jint,
+) -> jni::sys::jstring {
+    use k256::schnorr::SigningKey;
+    use k256::sha2::{Digest, Sha256};
+    use rand::RngCore;
+    let p_tag: String = match env.get_string(&p_tag_hex) { Ok(s) => s.into(), Err(_) => return std::ptr::null_mut() };
+    let body: String = match env.get_string(&content) { Ok(s) => s.into(), Err(_) => return std::ptr::null_mut() };
+
+    let sk = SigningKey::random(&mut rand::rngs::OsRng);
+    let pk_hex = farlo_hex(&sk.verifying_key().to_bytes());
+    let esc_tag = farlo_json_esc(&p_tag);
+    let esc_body = farlo_json_esc(&body);
+    let canonical = format!("[0,\"{}\",{},{},[[\"p\",{}]],{}]", pk_hex, created_at, kind, esc_tag, esc_body);
+
+    let digest = Sha256::digest(canonical.as_bytes());
+    let mut id_bytes = [0u8; 32];
+    id_bytes.copy_from_slice(&digest);
+    let id_hex = farlo_hex(&id_bytes);
+
+    let mut aux = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut aux);
+    let sig = match sk.sign_raw(&id_bytes, &aux) { Ok(s) => s, Err(_) => return std::ptr::null_mut() };
+    let sig_hex = farlo_hex(&sig.to_bytes());
+
+    let ev = format!(
+        "[\"EVENT\",{{\"id\":\"{}\",\"pubkey\":\"{}\",\"created_at\":{},\"kind\":{},\"tags\":[[\"p\",{}]],\"content\":{},\"sig\":\"{}\"}}]",
+        id_hex, pk_hex, created_at, kind, esc_tag, esc_body, sig_hex
+    );
+    match env.new_string(ev) { Ok(js) => js.into_raw(), Err(_) => std::ptr::null_mut() }
+}
+
+static PQ_SESSIONS: once_cell::sync::Lazy<std::sync::Mutex<std::collections::HashMap<String, blind_crypto::pq_ratchet::PqRatchetSession>>> =
+    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+fn jni_bytes32(env: &JNIEnv, arr: &JByteArray) -> Option<[u8; 32]> {
+    env.convert_byte_array(arr).ok()?.try_into().ok()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_pqGenerateMlkem768Keypair(
+    mut env: JNIEnv, _this: JObject,
+) -> jni::sys::jobjectArray {
+    let (dk, ek) = blind_crypto::pq_ratchet::mlkem768_keygen();
+    let cls = match env.find_class("[B") { Ok(c) => c, Err(_) => return std::ptr::null_mut() };
+    let out = match env.new_object_array(2, &cls, &JObject::null()) { Ok(a) => a, Err(_) => return std::ptr::null_mut() };
+    if let Ok(a0) = env.byte_array_from_slice(&dk) { let _ = env.set_object_array_element(&out, 0, &a0); }
+    if let Ok(a1) = env.byte_array_from_slice(&ek) { let _ = env.set_object_array_element(&out, 1, &a1); }
+    out.into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_pqInitiateSession(
+    mut env: JNIEnv, _this: JObject, peer_id: jni::objects::JString,
+    peer_ek: JByteArray, my_x_priv: JByteArray, peer_x_pub: JByteArray, peer_r_pub: JByteArray,
+) -> jbyteArray {
+    let pid: String = match env.get_string(&peer_id) { Ok(s) => s.into(), Err(_) => return std::ptr::null_mut() };
+    let ek = match env.convert_byte_array(&peer_ek) { Ok(b) => b, Err(_) => return std::ptr::null_mut() };
+    let (Some(mx), Some(px), Some(pr)) = (jni_bytes32(&env, &my_x_priv), jni_bytes32(&env, &peer_x_pub), jni_bytes32(&env, &peer_r_pub)) else { return std::ptr::null_mut(); };
+    let Ok((ct, root)) = blind_crypto::pq_ratchet::hybrid_pq_initiate(&ek, &mx, &px) else { return std::ptr::null_mut(); };
+    if let Ok(mut map) = PQ_SESSIONS.lock() { map.insert(pid, blind_crypto::pq_ratchet::PqRatchetSession::init_sender(root, pr)); }
+    env.byte_array_from_slice(&ct).map(|a| a.into_raw()).unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_pqAcceptSession(
+    mut env: JNIEnv, _this: JObject, peer_id: jni::objects::JString,
+    my_dk: JByteArray, mlkem_ct: JByteArray, my_x_priv: JByteArray, peer_x_pub: JByteArray, my_r_priv: JByteArray,
+) -> jni::sys::jboolean {
+    let pid: String = match env.get_string(&peer_id) { Ok(s) => s.into(), Err(_) => return 0 };
+    let (Ok(dk), Ok(ct)) = (env.convert_byte_array(&my_dk), env.convert_byte_array(&mlkem_ct)) else { return 0; };
+    let (Some(mx), Some(px), Some(mr)) = (jni_bytes32(&env, &my_x_priv), jni_bytes32(&env, &peer_x_pub), jni_bytes32(&env, &my_r_priv)) else { return 0; };
+    let Ok(root) = blind_crypto::pq_ratchet::hybrid_pq_respond(&dk, &ct, &mx, &px) else { return 0; };
+    if let Ok(mut map) = PQ_SESSIONS.lock() { map.insert(pid, blind_crypto::pq_ratchet::PqRatchetSession::init_receiver(root, mr)); return 1; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_pqRatchetEncrypt(
+    mut env: JNIEnv, _this: JObject, peer_id: jni::objects::JString, plaintext: JByteArray,
+) -> jbyteArray {
+    let pid: String = match env.get_string(&peer_id) { Ok(s) => s.into(), Err(_) => return std::ptr::null_mut() };
+    let Ok(pt) = env.convert_byte_array(&plaintext) else { return std::ptr::null_mut(); };
+    let enc = PQ_SESSIONS.lock().ok().and_then(|mut m| m.get_mut(&pid)?.encrypt(&pt).ok());
+    enc.and_then(|v| env.byte_array_from_slice(&v).ok()).map(|a| a.into_raw()).unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_pqRatchetDecrypt(
+    mut env: JNIEnv, _this: JObject, peer_id: jni::objects::JString, packet: JByteArray,
+) -> jbyteArray {
+    let pid: String = match env.get_string(&peer_id) { Ok(s) => s.into(), Err(_) => return std::ptr::null_mut() };
+    let Ok(pkt) = env.convert_byte_array(&packet) else { return std::ptr::null_mut(); };
+    let dec = PQ_SESSIONS.lock().ok().and_then(|mut m| m.get_mut(&pid)?.decrypt(&pkt).ok());
+    dec.and_then(|v| env.byte_array_from_slice(&v).ok()).map(|a| a.into_raw()).unwrap_or(std::ptr::null_mut())
 }

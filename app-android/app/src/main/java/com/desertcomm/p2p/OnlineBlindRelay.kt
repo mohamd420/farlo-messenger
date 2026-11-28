@@ -95,6 +95,7 @@ object OnlineBlindRelay {
     }
 
     var onEnvelopeReceived: ((String) -> Unit)? = null
+    var onRelayConnected: (() -> Unit)? = null
 
     fun topicForTag(destTag: String): String = "sada_v4_${destTag.uppercase()}"
 
@@ -190,7 +191,7 @@ object OnlineBlindRelay {
                     put(filter)
                 }.toString()
                 webSocket.send(reqMsg)
-                Log.d(TAG, "Nostr relay connected: $relayUrl")
+                Log.d(TAG, "Nostr relay connected: $relayUrl"); onRelayConnected?.invoke()
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -290,13 +291,20 @@ object OnlineBlindRelay {
         val idx = p[2].toIntOrNull() ?: return
         val total = p[3].toIntOrNull() ?: return
         val part = p[4]
+        val partBytes = part.toByteArray(Charsets.UTF_8).size
+        if (cid.length !in 1..64 || total !in 1..64 || idx !in 0 until total || partBytes > 16_384) return
         val assembled = synchronized(chunkBuffer) {
+            if (!chunkBuffer.containsKey(cid) && chunkBuffer.size >= 16) {
+                chunkBuffer.keys.firstOrNull()?.let { chunkBuffer.remove(it) }
+            }
             val map = chunkBuffer.getOrPut(cid) { mutableMapOf() }
+            val curBytes = map.values.sumOf { it.toByteArray(Charsets.UTF_8).size } - (map[idx]?.toByteArray(Charsets.UTF_8)?.size ?: 0)
+            if (curBytes + partBytes > 262_144) return@synchronized null
             map[idx] = part
             if (map.size == total) {
                 val full = (0 until total).joinToString("") { map[it] ?: "" }
                 chunkBuffer.remove(cid)
-                full
+                if (full.toByteArray(Charsets.UTF_8).size <= 262_144) full else null
             } else null
         }
         if (assembled != null && assembled.startsWith("DTN|")) {
