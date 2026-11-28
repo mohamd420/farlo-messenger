@@ -512,7 +512,7 @@ object ChatRepository {
                                 val body = mParts[3]
                                 if (_blockedPeers.value.contains(sender)) return; if (!markDeliveredOnce(appContext, bundleUid)) return
                                 if (body == "PQ_RESET") { pqActiveTags.remove(blindDestTag(sender)); pqOfferedPeers.remove(sender); appendMessage(sender, ChatMessage(com.desertcomm.ui.SadaStrings.tr("⚠️ تم إعادة ضبط جلسة التشفير الكمي — تحقق من رقم الأمان", "⚠️ PQ session reset — verify Safety Number"), isMe = false, timeText = nowTime())); return }
-                                if (body.startsWith("PQ_OFFER|")) {
+                                if (body.startsWith("PQ_OFFER|")) { if (pqOfferedPeers.contains(sender) && localId > sender) return
                                     val peerEk = runCatching { Base64.decode(body.removePrefix("PQ_OFFER|").trim(), Base64.NO_WRAP) }.getOrNull()
                                     val myPriv = myStaticPriv
                                     val peerPub = HardwareKeystore.getPeerPublicKey(appContext, sender)
@@ -525,7 +525,7 @@ object ChatRepository {
                                     }
                                     return
                                 }
-                                if (body.startsWith("PQ_ACCEPT|")) {
+                                if (body.startsWith("PQ_ACCEPT|")) { if (pqActiveTags.contains(blindDestTag(sender)) && localId < sender) return
                                     val ct = runCatching { Base64.decode(body.removePrefix("PQ_ACCEPT|").trim(), Base64.NO_WRAP) }.getOrNull()
                                     val myPriv = myStaticPriv
                                     val dk = myPqDk

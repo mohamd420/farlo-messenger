@@ -30,7 +30,7 @@ object OnlineBlindRelay {
     private const val NOSTR_KIND = 1059
 
     private val defaultNostrRelays = mutableListOf(
-        "wss://relay.damus.io",
+        "wss://nostr.bitcoiner.social",
         "wss://relay.primal.net",
         "wss://nostr.oxtr.dev",
         "wss://relay.snort.social"
