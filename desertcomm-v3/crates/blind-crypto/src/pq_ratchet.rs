@@ -95,7 +95,7 @@ impl PqRatchetSession {
         let (rk, sck) = kdf_rk(&shared_root, dh.as_bytes());
         Self {
             root_key: rk, dh_priv: sk.to_bytes(), dh_pub: pub_k.to_bytes(),
-            peer_dh_pub: Some(peer_ratchet_pub), send_ck: Some(sck), recv_ck: None,
+            peer_dh_pub: Some(peer_ratchet_pub), send_ck: Some(sck), recv_ck: Some(blake3::derive_key("farlo-v49-init-b2a", &shared_root)),
             ns: 0, nr: 0, skipped: HashMap::new(),
         }
     }
@@ -105,7 +105,7 @@ impl PqRatchetSession {
         let pub_k = PublicKey::from(&sk);
         Self {
             root_key: shared_root, dh_priv: my_ratchet_priv, dh_pub: pub_k.to_bytes(),
-            peer_dh_pub: None, send_ck: None, recv_ck: None,
+            peer_dh_pub: None, send_ck: Some(blake3::derive_key("farlo-v49-init-b2a", &shared_root)), recv_ck: None,
             ns: 0, nr: 0, skipped: HashMap::new(),
         }
     }

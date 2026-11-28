@@ -15,7 +15,7 @@ android {
         applicationId = "com.desertcomm"
         minSdk = 26
         targetSdk = 37
-        versionCode = 83
+        versionCode = 88
         versionName = "4.9"
         ndk { abiFilters += listOf("arm64-v8a") }
 

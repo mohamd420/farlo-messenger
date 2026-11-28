@@ -30,21 +30,22 @@ object OnlineBlindRelay {
     private const val NOSTR_KIND = 1059
 
     private val defaultNostrRelays = mutableListOf(
-        "wss://nos.lol",
-        "wss://relay.primal.net",
         "wss://relay.damus.io",
-        "wss://relay.nostr.bg",
-        "wss://nostr.oxtr.dev"
+        "wss://relay.primal.net",
+        "wss://nostr.oxtr.dev",
+        "wss://relay.snort.social"
     )
 
     private fun buildClient(useTor: Boolean, port: Int = 9050): OkHttpClient = OkHttpClient.Builder()
         .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
         .pingInterval(25, TimeUnit.SECONDS)
-        .connectTimeout(if (useTor) 20 else 10, TimeUnit.SECONDS)
+        .connectTimeout(if (useTor) 20 else 6, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
         .apply { if (useTor) proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", port))) }
         .build()
 
+    private val pendingOkCallbacks = java.util.concurrent.ConcurrentHashMap<String, (Boolean) -> Unit>()
+    private val recentEnvelopeMs = java.util.concurrent.ConcurrentHashMap<String, Long>()
     @Volatile private var torEnabled: Boolean = false
     @Volatile private var client: OkHttpClient = buildClient(false)
 
@@ -197,10 +198,17 @@ object OnlineBlindRelay {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 runCatching {
                     val arr = JSONArray(text)
-                    if (arr.length() >= 3 && arr.optString(0) == "EVENT") {
+                    val kindTag = arr.optString(0)
+                    if (arr.length() >= 3 && kindTag == "EVENT") {
                         val ev = arr.optJSONObject(2) ?: return
                         val content = ev.optString("content", "")
                         deliverPayload(content)
+                    } else if (arr.length() >= 3 && kindTag == "OK") {
+                        val evId = arr.optString(1)
+                        val accepted = arr.optBoolean(2, false)
+                        if (accepted) {
+                            pendingOkCallbacks.remove(evId)?.invoke(true)
+                        }
                     }
                 }
             }
@@ -212,7 +220,7 @@ object OnlineBlindRelay {
                 if (enabled) {
                     reconnectExecutor.schedule({
                         if (enabled && !nostrConnected.contains(relayUrl)) connectSingleNostrRelay(relayUrl)
-                    }, 2L, TimeUnit.SECONDS)
+                    }, 3L, TimeUnit.SECONDS)
                 }
             }
 
@@ -223,7 +231,7 @@ object OnlineBlindRelay {
                 if (enabled) {
                     reconnectExecutor.schedule({
                         if (enabled && !nostrConnected.contains(relayUrl)) connectSingleNostrRelay(relayUrl)
-                    }, 2L, TimeUnit.SECONDS)
+                    }, 3L, TimeUnit.SECONDS)
                 }
             }
         })
@@ -259,7 +267,7 @@ object OnlineBlindRelay {
                 if (enabled) {
                     reconnectExecutor.schedule({
                         if (enabled && !ntfyConnected) connectNtfyWebSocket()
-                    }, 15L, TimeUnit.SECONDS)
+                    }, 3L, TimeUnit.SECONDS)
                 }
             }
 
@@ -275,8 +283,11 @@ object OnlineBlindRelay {
         when {
             msg.startsWith("DTN|") -> {
                 val msgUid = msg.split("|", limit = 4).getOrNull(1) ?: msg.hashCode().toString()
-                if (seenEnvelopeIds.add(msgUid)) {
-                    if (seenEnvelopeIds.size > 2000) seenEnvelopeIds.clear()
+                val now = System.currentTimeMillis()
+                val prev = recentEnvelopeMs[msgUid]
+                if (prev == null || now - prev > 2_500L) {
+                    recentEnvelopeMs[msgUid] = now
+                    if (recentEnvelopeMs.size > 1500) recentEnvelopeMs.clear()
                     onEnvelopeReceived?.invoke(msg)
                 }
             }
@@ -330,7 +341,17 @@ object OnlineBlindRelay {
                         sentCount++
                     }
                 }
-                if (sentCount > 0) onResult?.invoke(true) else { ensureConnected(); onResult?.invoke(false) }
+                if (sentCount > 0) {
+                    val evId = Regex("\"id\":\"([0-9a-f]{64})\"").find(eventJson)?.groupValues?.get(1)
+                    if (evId != null && onResult != null) {
+                        pendingOkCallbacks[evId] = onResult
+                        reconnectExecutor.schedule({
+                            pendingOkCallbacks.remove(evId)?.let { cb -> ensureConnected(); cb(false) }
+                        }, 3500L, TimeUnit.MILLISECONDS)
+                    } else {
+                        onResult?.invoke(true)
+                    }
+                } else { ensureConnected(); onResult?.invoke(false) }
             }
         }; return }
 

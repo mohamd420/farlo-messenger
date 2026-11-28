@@ -493,7 +493,7 @@ object ChatRepository {
                                     val pqrParts = rawBody.removePrefix("PQR:").split(":", limit = 2)
                                     if (pqrParts.size == 2) {
                                         val pkt = Base64.decode(pqrParts[1], Base64.NO_WRAP)
-                                        val pt = NativeBridgeV3.pqRatchetDecrypt(pqrParts[0], pkt) ?: run { if (!NativeBridgeV3.pqHasSession(pqrParts[0])) { _savedPeers.value.firstOrNull { blindDestTag(it) == pqrParts[0] }?.let { pid -> if (pqOfferedPeers.add(pid)) { ensurePqKeys(); myPqEk?.let { ek -> sendControlEnvelope(appContext, pid, "PQ_OFFER|" + Base64.encodeToString(ek, Base64.NO_WRAP), SendTransportMode.LOCAL_DIRECT) } } } }; return@runCatching null }; NativeBridgeV3.pqExportSession(pqrParts[0])?.let { st -> HardwareKeystore.savePqSessionState(appContext, pqrParts[0], st) }
+                                        val pt = NativeBridgeV3.pqRatchetDecrypt(pqrParts[0], pkt) ?: run { if (!NativeBridgeV3.pqHasSession(pqrParts[0])) { _savedPeers.value.firstOrNull { blindDestTag(it) == pqrParts[0] }?.let { pid -> if (pqOfferedPeers.add(pid)) { ensurePqKeys(); myPqEk?.let { ek -> sendControlEnvelope(appContext, pid, "PQ_OFFER|" + Base64.encodeToString(ek, Base64.NO_WRAP), SendTransportMode.LOCAL_DIRECT) } } } }; return@runCatching null }; NativeBridgeV3.pqExportSession(pqrParts[0])?.let { st -> diskExecutor.execute { HardwareKeystore.savePqSessionState(appContext, pqrParts[0], st) } }
                                         String(pt, Charsets.UTF_8)
                                     } else null
                                 }.getOrNull()
@@ -519,7 +519,7 @@ object ChatRepository {
                                     if (peerEk != null && myPriv != null && peerPub != null) {
                                         val ct = NativeBridgeV3.pqInitiateSession(blindDestTag(sender), peerEk, myPriv, peerPub, peerPub)
                                         if (ct != null) {
-                                            pqActiveTags.add(blindDestTag(sender)); NativeBridgeV3.pqExportSession(blindDestTag(sender))?.let { st -> HardwareKeystore.savePqSessionState(appContext, blindDestTag(sender), st) }
+                                            pqActiveTags.add(blindDestTag(sender)); NativeBridgeV3.pqExportSession(blindDestTag(sender))?.let { st -> diskExecutor.execute { HardwareKeystore.savePqSessionState(appContext, blindDestTag(sender), st) } }
                                             sendControlEnvelope(appContext, sender, "PQ_ACCEPT|" + Base64.encodeToString(ct, Base64.NO_WRAP), SendTransportMode.LOCAL_DIRECT)
                                         }
                                     }
@@ -532,7 +532,7 @@ object ChatRepository {
                                     val peerPub = HardwareKeystore.getPeerPublicKey(appContext, sender)
                                     if (ct != null && myPriv != null && dk != null && peerPub != null) {
                                         if (NativeBridgeV3.pqAcceptSession(blindDestTag(sender), dk, ct, myPriv, peerPub, myPriv)) {
-                                            pqActiveTags.add(blindDestTag(sender)); NativeBridgeV3.pqExportSession(blindDestTag(sender))?.let { st -> HardwareKeystore.savePqSessionState(appContext, blindDestTag(sender), st) }
+                                            pqActiveTags.add(blindDestTag(sender)); NativeBridgeV3.pqExportSession(blindDestTag(sender))?.let { st -> diskExecutor.execute { HardwareKeystore.savePqSessionState(appContext, blindDestTag(sender), st) } }
                                         }
                                     }
                                     return
@@ -804,7 +804,7 @@ object ChatRepository {
                     val ct = NativeBridgeV3.sealDtnBody(groupKey, innerPayload.toByteArray(Charsets.UTF_8))!!
                     "GRP:" + Base64.encodeToString(ct, Base64.NO_WRAP)
                 }.getOrElse { BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("فشل التشفير — تم إيقاف الإرسال لحمايتك", "Encryption failed — send aborted")); return@execute }
-                recipientPub != null && pqActiveTags.contains(blindDestTag(chatId)) -> runCatching { val pkt = synchronized(pqActiveTags) { val p = NativeBridgeV3.pqRatchetEncrypt(blindDestTag(chatId), padEnvelopePayload(innerPayload).toByteArray(Charsets.UTF_8))!!; NativeBridgeV3.pqExportSession(blindDestTag(chatId))?.let { st -> HardwareKeystore.savePqSessionState(appContext, blindDestTag(chatId), st) }; p }; "PQR:${blindDestTag(localId)}:" + Base64.encodeToString(pkt, Base64.NO_WRAP) }.getOrElse { pqActiveTags.remove(blindDestTag(chatId)); pqOfferedPeers.remove(chatId); BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تعذّر تشفير جلسة PQ — أعد المحاولة لإعادة المزامنة", "⚠️ PQ session encrypt failed — retry to resync")); return@execute }
+                recipientPub != null && pqActiveTags.contains(blindDestTag(chatId)) -> runCatching { val pkt = synchronized(pqActiveTags) { val p = NativeBridgeV3.pqRatchetEncrypt(blindDestTag(chatId), padEnvelopePayload(innerPayload).toByteArray(Charsets.UTF_8))!!; NativeBridgeV3.pqExportSession(blindDestTag(chatId))?.let { st -> diskExecutor.execute { HardwareKeystore.savePqSessionState(appContext, blindDestTag(chatId), st) } }; p }; "PQR:${blindDestTag(localId)}:" + Base64.encodeToString(pkt, Base64.NO_WRAP) }.getOrElse { pqActiveTags.remove(blindDestTag(chatId)); pqOfferedPeers.remove(chatId); BleManager.setStatus(com.desertcomm.ui.SadaStrings.tr("⚠️ تعذّر تشفير جلسة PQ — أعد المحاولة لإعادة المزامنة", "⚠️ PQ session encrypt failed — retry to resync")); return@execute }
                 recipientPub != null -> runCatching { if (OnlineBlindRelay.isOnlineConnected.value && !textToSend.startsWith("PQ_") && pqOfferedPeers.add(chatId)) { ensurePqKeys(); myPqEk?.let { ek -> sendControlEnvelope(appContext, chatId, "PQ_OFFER|" + Base64.encodeToString(ek, Base64.NO_WRAP), sendMode) } }
                     val box = NativeBridgeV3.sealToRecipient(recipientPub, padEnvelopePayload(innerPayload).toByteArray(Charsets.UTF_8))!!
                     "BOX:" + Base64.encodeToString(box, Base64.NO_WRAP)

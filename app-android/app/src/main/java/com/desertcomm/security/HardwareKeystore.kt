@@ -360,10 +360,12 @@ object HardwareKeystore {
     }
 
     private const val PQ_KEY_ALIAS = "farlo_pq_state_aes_v1"
+    @Volatile private var cachedPqKey: javax.crypto.SecretKey? = null
 
     private fun getOrCreatePqAesKey(): javax.crypto.SecretKey {
+        cachedPqKey?.let { return it }
         val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (ks.getKey(PQ_KEY_ALIAS, null) as? javax.crypto.SecretKey)?.let { return it }
+        (ks.getKey(PQ_KEY_ALIAS, null) as? javax.crypto.SecretKey)?.let { cachedPqKey = it; return it }
         val kg = javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         kg.init(
             android.security.keystore.KeyGenParameterSpec.Builder(
@@ -374,7 +376,7 @@ object HardwareKeystore {
                 .setKeySize(256)
                 .build()
         )
-        return kg.generateKey()
+        return kg.generateKey().also { cachedPqKey = it }
     }
 
     @Synchronized
@@ -387,7 +389,7 @@ object HardwareKeystore {
             val blob = ByteArray(iv.size + ct.size)
             System.arraycopy(iv, 0, blob, 0, iv.size)
             System.arraycopy(ct, 0, blob, iv.size, ct.size)
-            val prefs = context.getSharedPreferences("farlo_pq_sessions", Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences("farlo_pq_sessions_v2", Context.MODE_PRIVATE)
             prefs.edit().putString(peerTag, Base64.encodeToString(blob, Base64.NO_WRAP)).commit()
         }
     }
@@ -395,7 +397,7 @@ object HardwareKeystore {
     @Synchronized
     fun loadAllPqSessionStates(context: Context): Map<String, ByteArray> {
         val out = mutableMapOf<String, ByteArray>()
-        val prefs = context.getSharedPreferences("farlo_pq_sessions", Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences("farlo_pq_sessions_v2", Context.MODE_PRIVATE)
         val key = runCatching { getOrCreatePqAesKey() }.getOrNull() ?: return out
         prefs.all.forEach { (tag, v) ->
             val b64 = v as? String ?: return@forEach
