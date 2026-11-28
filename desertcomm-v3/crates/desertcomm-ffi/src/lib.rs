@@ -686,3 +686,29 @@ pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_pqRatchetDecrypt(
     let dec = PQ_SESSIONS.lock().ok().and_then(|mut m| m.get_mut(&pid)?.decrypt(&pkt).ok());
     dec.and_then(|v| env.byte_array_from_slice(&v).ok()).map(|a| a.into_raw()).unwrap_or(std::ptr::null_mut())
 }
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_pqExportSession(
+    mut env: JNIEnv, _this: JObject, peer_id: jni::objects::JString,
+) -> jbyteArray {
+    let pid: String = match env.get_string(&peer_id) { Ok(s) => s.into(), Err(_) => return std::ptr::null_mut() };
+    let data = PQ_SESSIONS.lock().ok().and_then(|m| m.get(&pid).map(|s| s.export_bytes()));
+    data.and_then(|v| env.byte_array_from_slice(&v).ok()).map(|a| a.into_raw()).unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_pqImportSession(
+    mut env: JNIEnv, _this: JObject, peer_id: jni::objects::JString, state: JByteArray,
+) -> jboolean {
+    let pid: String = match env.get_string(&peer_id) { Ok(s) => s.into(), Err(_) => return 0 };
+    let Ok(bytes) = env.convert_byte_array(&state) else { return 0; };
+    let Ok(sess) = blind_crypto::pq_ratchet::PqRatchetSession::import_bytes(&bytes) else { return 0; };
+    if let Ok(mut m) = PQ_SESSIONS.lock() { m.insert(pid, sess); 1 } else { 0 }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_desertcomm_core_NativeBridgeV3_pqHasSession(
+    mut env: JNIEnv, _this: JObject, peer_id: jni::objects::JString,
+) -> jboolean {
+    let pid: String = match env.get_string(&peer_id) { Ok(s) => s.into(), Err(_) => return 0 };
+    if PQ_SESSIONS.lock().ok().map(|m| m.contains_key(&pid)).unwrap_or(false) { 1 } else { 0 }
+}

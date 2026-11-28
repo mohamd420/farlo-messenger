@@ -358,4 +358,56 @@ object HardwareKeystore {
         prefs.edit().putLong(KEY_ANTI_ROLLBACK, incomingVersion).apply()
         return true
     }
+
+    private const val PQ_KEY_ALIAS = "farlo_pq_state_aes_v1"
+
+    private fun getOrCreatePqAesKey(): javax.crypto.SecretKey {
+        val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (ks.getKey(PQ_KEY_ALIAS, null) as? javax.crypto.SecretKey)?.let { return it }
+        val kg = javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        kg.init(
+            android.security.keystore.KeyGenParameterSpec.Builder(
+                PQ_KEY_ALIAS,
+                android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT
+            ).setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .build()
+        )
+        return kg.generateKey()
+    }
+
+    @Synchronized
+    fun savePqSessionState(context: Context, peerTag: String, stateBytes: ByteArray) {
+        runCatching {
+            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, getOrCreatePqAesKey())
+            val iv = cipher.iv
+            val ct = cipher.doFinal(stateBytes)
+            val blob = ByteArray(iv.size + ct.size)
+            System.arraycopy(iv, 0, blob, 0, iv.size)
+            System.arraycopy(ct, 0, blob, iv.size, ct.size)
+            val prefs = context.getSharedPreferences("farlo_pq_sessions", Context.MODE_PRIVATE)
+            prefs.edit().putString(peerTag, Base64.encodeToString(blob, Base64.NO_WRAP)).commit()
+        }
+    }
+
+    @Synchronized
+    fun loadAllPqSessionStates(context: Context): Map<String, ByteArray> {
+        val out = mutableMapOf<String, ByteArray>()
+        val prefs = context.getSharedPreferences("farlo_pq_sessions", Context.MODE_PRIVATE)
+        val key = runCatching { getOrCreatePqAesKey() }.getOrNull() ?: return out
+        prefs.all.forEach { (tag, v) ->
+            val b64 = v as? String ?: return@forEach
+            runCatching {
+                val blob = Base64.decode(b64, Base64.NO_WRAP)
+                if (blob.size > 28) {
+                    val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+                    cipher.init(javax.crypto.Cipher.DECRYPT_MODE, key, javax.crypto.spec.GCMParameterSpec(128, blob, 0, 12))
+                    out[tag] = cipher.doFinal(blob, 12, blob.size - 12)
+                }
+            }
+        }
+        return out
+    }
 }

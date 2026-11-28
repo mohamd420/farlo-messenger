@@ -110,6 +110,67 @@ impl PqRatchetSession {
         }
     }
 
+    pub fn export_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(220 + self.skipped.len() * 68);
+        out.push(0xF1);
+        out.extend_from_slice(&self.root_key);
+        out.extend_from_slice(&self.dh_priv);
+        out.extend_from_slice(&self.dh_pub);
+        let flags: u8 = (if self.peer_dh_pub.is_some() { 1 } else { 0 })
+            | (if self.send_ck.is_some() { 2 } else { 0 })
+            | (if self.recv_ck.is_some() { 4 } else { 0 });
+        out.push(flags);
+        if let Some(k) = &self.peer_dh_pub { out.extend_from_slice(k); }
+        if let Some(k) = &self.send_ck { out.extend_from_slice(k); }
+        if let Some(k) = &self.recv_ck { out.extend_from_slice(k); }
+        out.extend_from_slice(&self.ns.to_be_bytes());
+        out.extend_from_slice(&self.nr.to_be_bytes());
+        let cnt = self.skipped.len().min(MAX_SKIP) as u16;
+        out.extend_from_slice(&cnt.to_be_bytes());
+        for ((pk, n), mk) in self.skipped.iter().take(MAX_SKIP) {
+            out.extend_from_slice(pk);
+            out.extend_from_slice(&n.to_be_bytes());
+            out.extend_from_slice(mk);
+        }
+        out
+    }
+
+    pub fn import_bytes(data: &[u8]) -> Result<Self, &'static str> {
+        if data.len() < 1 + 96 + 1 + 10 || data[0] != 0xF1 { return Err("bad pq state header"); }
+        let mut off = 1usize;
+        let mut take32 = |d: &[u8], o: &mut usize| -> Result<[u8; 32], &'static str> {
+            if *o + 32 > d.len() { return Err("truncated pq state"); }
+            let mut b = [0u8; 32];
+            b.copy_from_slice(&d[*o..*o + 32]);
+            *o += 32;
+            Ok(b)
+        };
+        let root_key = take32(data, &mut off)?;
+        let dh_priv = take32(data, &mut off)?;
+        let dh_pub = take32(data, &mut off)?;
+        if off >= data.len() { return Err("missing flags"); }
+        let flags = data[off];
+        off += 1;
+        let peer_dh_pub = if (flags & 1) != 0 { Some(take32(data, &mut off)?) } else { None };
+        let send_ck = if (flags & 2) != 0 { Some(take32(data, &mut off)?) } else { None };
+        let recv_ck = if (flags & 4) != 0 { Some(take32(data, &mut off)?) } else { None };
+        if off + 10 > data.len() { return Err("truncated counters"); }
+        let ns = u32::from_be_bytes(data[off..off + 4].try_into().map_err(|_| "ns")?);
+        let nr = u32::from_be_bytes(data[off + 4..off + 8].try_into().map_err(|_| "nr")?);
+        let cnt = u16::from_be_bytes(data[off + 8..off + 10].try_into().map_err(|_| "cnt")?) as usize;
+        off += 10;
+        if cnt > MAX_SKIP || off + cnt * 68 > data.len() { return Err("bad skipped len"); }
+        let mut skipped = HashMap::with_capacity(cnt);
+        for _ in 0..cnt {
+            let pk = take32(data, &mut off)?;
+            let n = u32::from_be_bytes(data[off..off + 4].try_into().map_err(|_| "sn")?);
+            off += 4;
+            let mk = take32(data, &mut off)?;
+            skipped.insert((pk, n), mk);
+        }
+        Ok(Self { root_key, dh_priv, dh_pub, peer_dh_pub, send_ck, recv_ck, ns, nr, skipped })
+    }
+
     pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Vec<u8>, &'static str> {
         let ck = self.send_ck.ok_or("send chain not initialized")?;
         let (next_ck, mut mk) = kdf_ck(&ck);

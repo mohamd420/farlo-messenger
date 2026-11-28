@@ -52,6 +52,9 @@ object NativeBridgeV3 {
     external fun pqAcceptSession(peerId: String, myDk: ByteArray, mlkemCt: ByteArray, myXPriv: ByteArray, peerXPub: ByteArray, myRatchetPriv: ByteArray): Boolean
     external fun pqRatchetEncrypt(peerId: String, plaintext: ByteArray): ByteArray?
     external fun pqRatchetDecrypt(peerId: String, packet: ByteArray): ByteArray?
+    external fun pqExportSession(peerId: String): ByteArray?
+    external fun pqImportSession(peerId: String, state: ByteArray): Boolean
+    external fun pqHasSession(peerId: String): Boolean
 
     fun safeGenerateElligatorKeypair(): Result<Triple<ByteArray, ByteArray, ByteArray>> = runCatching {
         val arr = generateElligatorKeypair() ?: error("Elligator2 keygen returned null")
